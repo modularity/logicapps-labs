@@ -12,57 +12,49 @@
     }
   },
   "managedApiConnections": {
-    "microsoftforms-1": {
+    "microsoftforms-2": {
       "api": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/microsoftforms"
       },
       "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/microsoftforms-1"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/microsoftforms-2"
       },
-      "authentication": "@parameters('microsoftforms-1-Authentication')",
-      "connectionRuntimeUrl": "@parameters('microsoftforms-1-ConnectionRuntimeUrl')"
+      "authentication": "@parameters('microsoftforms-2-Authentication')",
+      "connectionRuntimeUrl": "@parameters('microsoftforms-2-ConnectionRuntimeUrl')"
     },
-    "teams": {
+
+    "teams-1": {
       "api": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/teams"
       },
       "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/teams"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/teams-1"
       },
-      "authentication": "@parameters('teams-Authentication')",
-      "connectionRuntimeUrl": "@parameters('teams-ConnectionRuntimeUrl')"
+      "authentication": "@parameters('teams-1-Authentication')",
+      "connectionRuntimeUrl": "@parameters('teams-1-ConnectionRuntimeUrl')"
     },
-    "outlook": {
+    "office365": {
       "api": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/outlook"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/office365"
       },
       "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/outlook-1"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/office365"
       },
-      "authentication": "@parameters('outlook-Authentication')",
-      "connectionRuntimeUrl": "@parameters('outlook-ConnectionRuntimeUrl')"
-    },
-    "outlook-1": {
-      "api": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/outlook"
-      },
-      "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/outlook-2"
-      },
-      "authentication": "@parameters('outlook-1-Authentication')",
-      "connectionRuntimeUrl": "@parameters('outlook-1-ConnectionRuntimeUrl')"
+      "authentication": "@parameters('office365-Authentication')",
+      "connectionRuntimeUrl": "@parameters('office365-ConnectionRuntimeUrl')"
     }
   },
   "serviceProviderConnections": {
     "sql": {
       "parameterValues": {
-        "connectionString": "@appsetting('sql_connectionString')"
+        "server": "ai-loan-agent-sqlserver.database.windows.net",
+        "database": "ai-loan-agent-db"
       },
-      "parameterSetName": "connectionString",
+      "parameterSetName": "managedIdentity",
       "serviceProvider": {
         "id": "/serviceProviders/sql"
       },
-      "displayName": "new_conn_05f33"
+      "displayName": "sql_managed_identity"
     }
   },
   "apiManagementConnections": {

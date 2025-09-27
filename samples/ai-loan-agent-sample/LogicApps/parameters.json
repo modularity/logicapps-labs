@@ -1,110 +1,110 @@
 {
-  "approvalAgent-policyDocument-URI": {
+  "PolicyDocumentURI": {
     "type": "String",
-    "value": "@appsetting('approvalAgent-policyDocument-URI')"
+    "value": "@appsetting('PolicyDocumentURI')"
   },
-  "microsoftforms-1-ConnectionRuntimeUrl": {
+  "microsoftforms-2-ConnectionRuntimeUrl": {
     "type": "String",
-    "value": "@appsetting('microsoftforms-1-ConnectionRuntimeUrl')"
+    "value": "@appsetting('microsoftforms-2-ConnectionRuntimeUrl')"
   },
-  "teams-GroupId": {
-    "type": "String",
-    "value": "@appsetting('teams-GroupId')"
-  },
-  "teams-ChannelId": {
-    "type": "String",
-    "value": "@appsetting('teams-ChannelId')"
-  },
-  "microsoftforms-1-Authentication": {
+  "microsoftforms-2-Authentication": {
     "type": "Object",
     "value": {
       "type": "Raw",
       "scheme": "Key",
-      "parameter": "@appsetting('microsoftforms-1-connectionKey')"
+      "parameter": "@appsetting('microsoftforms-2-connectionKey')"
     }
   },
-  "teams-ConnectionRuntimeUrl": {
+  "teams-1-ConnectionRuntimeUrl": {
     "type": "String",
-    "value": "@appsetting('teams-ConnectionRuntimeUrl')"
+    "value": "@appsetting('teams-1-ConnectionRuntimeUrl')"
   },
-  "teams-Authentication": {
+  "teams-1-Authentication": {
     "type": "Object",
     "value": {
       "type": "Raw",
       "scheme": "Key",
-      "parameter": "@appsetting('teams-connectionKey')"
+      "parameter": "@appsetting('teams-1-connectionKey')"
     }
   },
-  "outlook-ConnectionRuntimeUrl": {
+  "office365-ConnectionRuntimeUrl": {
     "type": "String",
-    "value": "@appsetting('outlook-ConnectionRuntimeUrl')"
+    "value": "@appsetting('office365-ConnectionRuntimeUrl')"
   },
-  "outlook-Authentication": {
+  "office365-Authentication": {
     "type": "Object",
     "value": {
       "type": "Raw",
       "scheme": "Key",
-      "parameter": "@appsetting('outlook-connectionKey')"
+      "parameter": "@appsetting('office365-connectionKey')"
     }
   },
-  "outlook-1-ConnectionRuntimeUrl": {
+  "PolicyDocumentURL": {
     "type": "String",
-    "value": "@appsetting('outlook-1-ConnectionRuntimeUrl')"
+    "value": "@appsetting('PolicyDocumentURL')"
   },
-  "outlook-1-Authentication": {
-    "type": "Object",
-    "value": {
-      "type": "Raw",
-      "scheme": "Key",
-      "parameter": "@appsetting('outlook-1-connectionKey')"
-    }
+  "TeamsGroupId": {
+    "type": "String",
+    "value": "@appsetting('TeamsGroupId')"
+  },
+  "TeamsChannelId": {
+    "type": "String",
+    "value": "@appsetting('TeamsChannelId')"
+  },
+  "DemoUserEmail": {
+    "type": "String",
+    "value": "@appsetting('DemoUserEmail')"
+  },
+  "LoanPolicyDocumentUrl": {
+    "type": "String",
+    "value": "https://mystorageaccount123.blob.core.windows.net/policies/loan-policy.txt?sp=r&st=2024-01-01T00:00:00Z&se=2025-12-31T23:59:59Z&sv=2022-11-02&sr=b&sig=EXAMPLE-SAS-TOKEN"
   },
   "apiManagementOperation-ResourceGroup": {
     "type": "String",
-    "value": "Fourth-Coffee-AI"
+    "value": "ai-loan-agent-rg"
   },
   "apiManagementOperation-ServiceName": {
     "type": "String",
-    "value": "fourth-coffee-ecommerce"
+    "value": "ai-loan-agent-apim"
   },
   "apiManagementOperation-BaseUrl": {
     "type": "String",
-    "value": "https://fourth-coffee-ecommerce.azure-api.net/risk"
+    "value": "https://ai-loan-agent-apim.azure-api.net/risk"
   },
   "apiManagementOperation-1-ResourceGroup": {
     "type": "String",
-    "value": "Fourth-Coffee-AI"
+    "value": "ai-loan-agent-rg"
   },
   "apiManagementOperation-1-ServiceName": {
     "type": "String",
-    "value": "fourth-coffee-ecommerce"
+    "value": "ai-loan-agent-apim"
   },
   "apiManagementOperation-1-BaseUrl": {
     "type": "String",
-    "value": "https://fourth-coffee-ecommerce.azure-api.net/employment"
+    "value": "https://ai-loan-agent-apim.azure-api.net/employment"
   },
   "apiManagementOperation-2-ResourceGroup": {
     "type": "String",
-    "value": "Fourth-Coffee-AI"
+    "value": "ai-loan-agent-rg"
   },
   "apiManagementOperation-2-ServiceName": {
     "type": "String",
-    "value": "fourth-coffee-ecommerce"
+    "value": "ai-loan-agent-apim"
   },
   "apiManagementOperation-2-BaseUrl": {
     "type": "String",
-    "value": "https://fourth-coffee-ecommerce.azure-api.net/credit"
+    "value": "https://ai-loan-agent-apim.azure-api.net/credit"
   },
   "apiManagementOperation-3-ResourceGroup": {
     "type": "String",
-    "value": "Fourth-Coffee-AI"
+    "value": "ai-loan-agent-rg"
   },
   "apiManagementOperation-3-ServiceName": {
     "type": "String",
-    "value": "fourth-coffee-ecommerce"
+    "value": "ai-loan-agent-apim"
   },
   "apiManagementOperation-3-BaseUrl": {
     "type": "String",
-    "value": "https://fourth-coffee-ecommerce.azure-api.net/verify"
+    "value": "https://ai-loan-agent-apim.azure-api.net/verify"
   }
 }

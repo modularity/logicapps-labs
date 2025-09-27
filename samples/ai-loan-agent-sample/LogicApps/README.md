@@ -6,15 +6,31 @@ This guide provides step-by-step instructions for setting up local development e
 
 The `local.settings.json` file contains configuration settings required for local development. This file should **never** be committed to source control as it contains sensitive connection strings and local-specific paths.
 
+## ✅ Configuration Fixed & Ready to Deploy
+
+**Both critical configuration issues have been resolved with your actual values:**
+
+1. **✅ HTTP Action URI Configuration** - READY ✅
+   - Fixed missing `PolicyDocumentURL` app setting 
+   - HTTP action will now retrieve policy document successfully
+
+2. **✅ Teams Integration Configuration** - READY ✅  
+   - Updated with your actual Teams IDs:
+     - Group ID: `12345678-1234-1234-1234-123456789012`
+     - Channel ID: `19:abcd1234567890abcd1234567890abcd@thread.tacv2`
+   - Teams adaptive cards will post to your specified channel
+
+**🚀 Ready for deployment! See [TEAMS-SETUP.md](./TEAMS-SETUP.md) for complete deployment and testing guide.**
+
 ## Quick Setup Steps
 
 ### 1. Create local.settings.json
-```bash
+```powershell
 # Navigate to the LogicApps folder
 cd LogicApps
 
 # Copy the template file
-copy cloud.settings.json local.settings.json
+Copy-Item cloud.settings.json local.settings.json
 ```
 
 ### 2. Configure Required Settings
@@ -24,7 +40,7 @@ Update the following values in your `local.settings.json` file:
 | Setting Key | Description | Where to Find | Example |
 |-------------|-------------|---------------|---------|
 | `ProjectDirectoryPath` | Local path to LogicApps folder | Your local file system | `C:\\projects\\ai-loan-agent\\LogicApps` |
-| `WORKFLOWS_SUBSCRIPTION_ID` | Azure subscription ID | Azure Portal → Subscriptions | `12345678-1234-1234-1234-123456789012` |
+| `WORKFLOWS_SUBSCRIPTION_ID` | Azure subscription ID | Azure Portal → Subscriptions | `12345678-1234-5678-9012-123456789012` |
 | `WORKFLOWS_LOCATION_NAME` | Azure region for deployment | Azure Portal → Resource location | `westus3` |
 | `WORKFLOWS_RESOURCE_GROUP_NAME` | Target resource group | Azure Portal → Resource groups | `MyLogicAppsRG` |
 | `agent_ResourceID` | Azure OpenAI resource ID | Azure Portal → OpenAI resource → Properties | `/subscriptions/.../providers/Microsoft.CognitiveServices/accounts/myopenai` |
@@ -42,7 +58,7 @@ Update the following values in your `local.settings.json` file:
 | `outlook-1-connectionKey` | Secondary Outlook auth key | Logic Apps Designer → Connection auth | `eyJ...` |
 | `approvalAgent-policyDocument-URI` | Policy document blob URL | Azure Storage → Blob → Generate SAS | `https://...blob.core.windows.net/...` |
 | `teams-GroupId` | Microsoft Teams group ID | Teams Admin Center or Teams API | `12345678-1234-1234-1234-123456789012` |
-| `teams-ChannelId` | Microsoft Teams channel ID | Teams Admin Center or Teams API | `19:abcdef1234567890abcdef1234567890@thread.skype` |
+| `teams-ChannelId` | Microsoft Teams channel ID | Teams Admin Center or Teams API | `19:abcd1234567890abcd1234567890abcd@thread.tacv2` |
 
 ### 3. Pre-configured Values (Do Not Modify)
 

@@ -38,7 +38,7 @@
                             "HTTP": {
                                 "type": "Http",
                                 "inputs": {
-                                    "uri": "@parameters('outlook-1-ConnectionRuntimeUrl')",
+                                    "uri": "@parameters('PolicyDocumentURL')",
                                     "method": "GET"
                                 },
                                 "runtimeConfiguration": {
@@ -82,7 +82,7 @@
                                         "template": "/assessment"
                                     },
                                     "body": {
-                                        "SSN": "@body('Get_response_details')?['r8e83ba12429a4dd7ad4ca3bbfd174ce1']"
+                                        "SSN": "@body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']"
                                     }
                                 }
                             }
@@ -111,12 +111,12 @@
                                 "inputs": {
                                     "host": {
                                         "connection": {
-                                            "referenceName": "outlook-1"
+                                            "referenceName": "office365"
                                         }
                                     },
                                     "method": "post",
                                     "body": {
-                                        "To": "FabrikamGoods@outlook.com",
+                                        "To": "@parameters('DemoUserEmail')",
                                         "Subject": "@agentParameters('Subject')",
                                         "Body": "<p class=\"editor-paragraph\">@{agentParameters('Body')}</p>",
                                         "Importance": "Normal"
@@ -151,7 +151,7 @@
                                 "inputs": {
                                     "host": {
                                         "connection": {
-                                            "referenceName": "teams"
+                                            "referenceName": "teams-1"
                                         }
                                     },
                                     "body": {
@@ -160,8 +160,8 @@
                                             "messageBody": "{\n    \"type\": \"AdaptiveCard\",\n    \"$schema\": \"http://adaptivecards.io/schemas/adaptive-card.json\",\n    \"version\": \"1.2\",\n    \"body\": [\n        {\n            \"type\": \"Container\",\n            \"items\": [\n                {\n                    \"type\": \"TextBlock\",\n                    \"text\": \"The following item went through AI agents and needs additional review. Here is AI summary and relevant details - \",\n                    \"wrap\": true,\n \"weight\": \"bolder\",\n                            \"size\": \"medium\",\n                            \"style\": \"heading\"\n                },\n               {\n                    \"type\": \"TextBlock\",\n                    \"text\": \"@{agentParameters('aireview')}\",\n                    \"wrap\": true\n                },\n               {\n                    \"type\": \"TextBlock\",\n                    \"text\": \"Loan Amount: @{agentParameters('loanamount')}\",\n                    \"wrap\": true\n                },\n               {\n                    \"type\": \"TextBlock\",\n                    \"text\": \"Risk Profile : @{agentParameters('riskprofile')} \",\n                    \"wrap\": true\n                },\n            ]\n        },\n        {\n            \"type\":\"TextBlock\",\n \"id\": \"moreText\",\n \"text\": \"More Info\",\n \"isVisible\": false\n },\n {\n \"type\": \"ActionSet\",\n \"separator\": true,\n \"actions\": [\n {\n \"type\": \"Action.OpenUrl\",\n \"title\": \"View Details\",\n \"url\": \"https://adaptivecards.io/\"\n }\n ],\n \"spacing\": \"ExtraLarge\"\n },\n {\n \"type\":  \"ActionSet\",\n            \"actions\": [\n                {\n                    \"type\": \"Action.Submit\",\n                    \"title\": \"Approve\",\n                    \"style\": \"positive\"\n                }\n            ]\n        }\n    ],\n    \"actions\": [\n        {\n            \"type\": \"Action.Submit\",\n            \"title\": \"Reject\",\n            \"style\": \"destructive\"\n        }\n    ]\n}",
                                             "updateMessage": "Thanks for your response!",
                                             "recipient": {
-                                                "groupId": "@parameters('teams-GroupId')",
-                                                "channelId": "@parameters('teams-ChannelId')"
+                                                "groupId": "@parameters('TeamsGroupId')",
+                                                "channelId": "@parameters('TeamsChannelId')"
                                             }
                                         }
                                     },
@@ -208,11 +208,11 @@
                 "inputs": {
                     "host": {
                         "connection": {
-                            "referenceName": "microsoftforms-1"
+                            "referenceName": "microsoftforms-2"
                         }
                     },
                     "method": "get",
-                    "path": "/formapi/api/forms('@{encodeURIComponent('v4j5cvGGr0GRqy180BHbR8D0BGsaCb1KnkS_n2PEmQ9UOFhKMFlHM0hIMkpaQ05IUlRCOUpVM0lKQy4u')}')/responses",
+                    "path": "/formapi/api/forms('@{encodeURIComponent('v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WDBINVRGVFRSWUUxUlJHWktTODU1Sy4u')}')/responses",
                     "queries": {
                         "response_id": "@triggerBody()?['resourceData']?['responseId']"
                     }
@@ -231,9 +231,9 @@
                         "template": "/employment"
                     },
                     "body": {
-                        "Employer": "@body('Get_response_details')?['r3099f90cf4334b749d7f72863ab10d5e']",
-                        "Salary": "@body('Get_response_details')?['r5d9848ce664b46c88c13d6020bfb8fb2']",
-                        "YearsWorked": "@body('Get_response_details')?['r4b78310cc1ce4720acd44307c0e41e96']"
+                        "Employer": "@body('Get_response_details')?['r0aeb0d43f1e24d9ea19349c800745070']",
+                        "Salary": "@body('Get_response_details')?['rfa73af07e6c2418fbaaa54752de08ba9']",
+                        "YearsWorked": "@body('Get_response_details')?['re46703986d6c4a9ca5c0cd26ff515a78']"
                     }
                 },
                 "runAfter": {
@@ -254,9 +254,9 @@
                         "template": "/creditscore"
                     },
                     "body": {
-                        "SSN": "@body('Get_response_details')?['r8e83ba12429a4dd7ad4ca3bbfd174ce1']",
-                        "Salary": "@body('Get_response_details')?['r5d9848ce664b46c88c13d6020bfb8fb2']",
-                        "YearsInRole": "@body('Get_response_details')?['r4b78310cc1ce4720acd44307c0e41e96']"
+                        "SSN": "@body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']",
+                        "Salary": "@body('Get_response_details')?['rfa73af07e6c2418fbaaa54752de08ba9']",
+                        "YearsInRole": "@body('Get_response_details')?['re46703986d6c4a9ca5c0cd26ff515a78']"
                     }
                 },
                 "runAfter": {
@@ -277,9 +277,9 @@
                         "template": "/demographics"
                     },
                     "body": {
-                        "Name": "@body('Get_response_details')?['rc5fec3ae6109415fa6f9e635fc855b24']",
-                        "DateOfBirth": "@body('Get_response_details')?['r8bbd953f51e5413da5385807db9eda84']",
-                        "SSN": "@body('Get_response_details')?['r8e83ba12429a4dd7ad4ca3bbfd174ce1']"
+                        "Name": "@body('Get_response_details')?['r781e65672eb042ca9f8d75206e68c110']",
+                        "DateOfBirth": "@body('Get_response_details')?['re997bef614374a08800ca72624ff3c42']",
+                        "SSN": "@body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']"
                     }
                 },
                 "runAfter": {
@@ -291,10 +291,10 @@
             "Application_Summary": {
                 "type": "Compose",
                 "inputs": {
-                    "SSN": "@{body('Get_response_details')?['r8e83ba12429a4dd7ad4ca3bbfd174ce1']}",
-                    "LoanAmount": "@{body('Get_response_details')?['r7cfa1d61a133417da8dbc18dd28c6bab']}",
-                    "VehicleMake": "@{body('Get_response_details')?['r65f5322dbb18413dbcd34f2c0bc5d76b']}",
-                    "Salary": "@{body('Get_response_details')?['r5d9848ce664b46c88c13d6020bfb8fb2']}",
+                    "SSN": "@{body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']}",
+                    "LoanAmount": "@{body('Get_response_details')?['r60559252a4bd4438a4ddc3298d744ff0']}",
+                    "VehicleMake": "@{body('Get_response_details')?['rf7bf33c508a348edaafb275b0a2876d6']}",
+                    "Salary": "@{body('Get_response_details')?['rfa73af07e6c2418fbaaa54752de08ba9']}",
                     "CreditScore": "@{body('Credit_check_API')?['CreditScore']}",
                     "Email": "@{body('Get_response_details')?['responder']}"
                 },
@@ -329,13 +329,28 @@
         },
         "contentVersion": "1.0.0.0",
         "outputs": {},
+        "parameters": {
+            "DemoUserEmail": {
+                "type": "string",
+                "defaultValue": "demo@example.com"
+            },
+            "PolicyDocumentURL": {
+                "type": "string"
+            },
+            "TeamsGroupId": {
+                "type": "string"
+            },
+            "TeamsChannelId": {
+                "type": "string"
+            }
+        },
         "triggers": {
             "When_a_new_response_is_submitted": {
                 "type": "ApiConnectionWebhook",
                 "inputs": {
                     "host": {
                         "connection": {
-                            "referenceName": "microsoftforms-1"
+                            "referenceName": "microsoftforms-2"
                         }
                     },
                     "body": {
@@ -343,7 +358,7 @@
                         "notificationUrl": "@listCallbackUrl()",
                         "source": "ms-connector"
                     },
-                    "path": "/formapi/api/forms/@{encodeURIComponent('v4j5cvGGr0GRqy180BHbR8D0BGsaCb1KnkS_n2PEmQ9UOFhKMFlHM0hIMkpaQ05IUlRCOUpVM0lKQy4u')}/webhooks"
+                    "path": "/formapi/api/forms/@{encodeURIComponent('v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WDBINVRGVFRSWUUxUlJHWktTODU1Sy4u')}/webhooks"
                 },
                 "splitOn": "@triggerBody()?['value']"
             }

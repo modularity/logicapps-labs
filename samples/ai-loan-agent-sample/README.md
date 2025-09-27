@@ -16,16 +16,38 @@ The following Azure services are required for this project:
 - **Azure Storage Account** - Workflow runtime storage
 - **Azure Blob Storage** - Policy document storage
 
-## Deployment Instructions
+## 🚀 Quick Start
 
-Deploy this Logic Apps Standard application using Visual Studio Code with the Azure Logic Apps extension:
+**Complete setup in 3 steps:**
 
-1. Install the Azure Logic Apps (Standard) extension in VS Code
-2. Configure your `local.settings.json` file (see LogicApps/README.md for setup instructions)
-3. Right-click on the LogicApps folder and select "Deploy to Logic App in Azure"
-4. Follow the deployment wizard to create or select an Azure Logic App resource
+### 1. Deploy Azure Infrastructure
+```powershell
+cd Deployment
+.\deploy.ps1
+```
 
-For detailed deployment guidance, refer to the [official Azure Logic Apps deployment documentation](https://docs.microsoft.com/en-us/azure/logic-apps/create-single-tenant-workflows-visual-studio-code).
+### 2. Setup Microsoft 365 Connections
+Follow the comprehensive guide: **[SETUPCONNECTIONS.md](SETUPCONNECTIONS.md)**
+
+### 3. Deploy Logic Apps
+- Open the `LogicApps` folder in VS Code
+- Right-click and select "Deploy to Logic App in Azure"
+- Follow the deployment wizard
+
+## 📚 Documentation
+
+- **[Setup Guide](SETUPCONNECTIONS.md)** - Complete connection setup instructions
+- **[Microsoft 365 Setup](Deployment/MICROSOFT365-SETUP.md)** - Detailed Microsoft 365 configuration
+- **[Database Setup](Deployment/database-setup.sql)** - Database schema and data
+
+## ⚙️ Deployment Scripts
+
+All deployment scripts are located in the `Deployment/` folder:
+
+- **`deploy.ps1`** - Main Azure infrastructure deployment
+- **`create-connections.ps1`** - Creates Microsoft 365 API connections
+- **`helpers/get-connection-details.ps1`** - Extracts connection configuration details
+- **Helper guides** - Browser-based setup methods for Teams and Forms
 
 ## Workflows
 
