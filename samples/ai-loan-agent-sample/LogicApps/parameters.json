@@ -45,66 +45,70 @@
   },
   "TeamsGroupId": {
     "type": "String",
-    "value": "@appsetting('TeamsGroupId')"
+    "value": "placeholder-group-id"
   },
   "TeamsChannelId": {
     "type": "String",
-    "value": "@appsetting('TeamsChannelId')"
+    "value": "placeholder-channel-id"
   },
   "DemoUserEmail": {
     "type": "String",
-    "value": "@appsetting('DemoUserEmail')"
+    "value": "demo@example.com"
+  },
+  "sql_connectionString": {
+    "type": "String",
+    "value": "@appsetting('sql_connectionString')"
   },
   "LoanPolicyDocumentUrl": {
     "type": "String",
-    "value": "https://mystorageaccount123.blob.core.windows.net/policies/loan-policy.txt?sp=r&st=2024-01-01T00:00:00Z&se=2025-12-31T23:59:59Z&sv=2022-11-02&sr=b&sig=EXAMPLE-SAS-TOKEN"
+    "value": "@appsetting('LoanPolicyDocumentUrl')"
   },
   "apiManagementOperation-ResourceGroup": {
     "type": "String",
-    "value": "ai-loan-agent-rg"
+    "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
   "apiManagementOperation-ServiceName": {
     "type": "String",
-    "value": "ai-loan-agent-apim"
+    "value": "@appsetting('ApiManagementServiceName')"
   },
   "apiManagementOperation-BaseUrl": {
     "type": "String",
-    "value": "https://ai-loan-agent-apim.azure-api.net/risk"
+    "value": "@appsetting('ApiManagementBaseUrl')"
   },
   "apiManagementOperation-1-ResourceGroup": {
     "type": "String",
-    "value": "ai-loan-agent-rg"
+    "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
   "apiManagementOperation-1-ServiceName": {
     "type": "String",
-    "value": "ai-loan-agent-apim"
+    "value": "@appsetting('ApiManagementServiceName')"
   },
   "apiManagementOperation-1-BaseUrl": {
     "type": "String",
-    "value": "https://ai-loan-agent-apim.azure-api.net/employment"
+    "value": "@appsetting('ApiManagementEmploymentUrl')"
   },
   "apiManagementOperation-2-ResourceGroup": {
     "type": "String",
-    "value": "ai-loan-agent-rg"
+    "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
   "apiManagementOperation-2-ServiceName": {
     "type": "String",
-    "value": "ai-loan-agent-apim"
+    "value": "@appsetting('ApiManagementServiceName')"
   },
   "apiManagementOperation-2-BaseUrl": {
     "type": "String",
-    "value": "https://ai-loan-agent-apim.azure-api.net/credit"
+    "value": "@appsetting('ApiManagementCreditUrl')"
   },
   "apiManagementOperation-3-ResourceGroup": {
     "type": "String",
-    "value": "ai-loan-agent-rg"
+    "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
   "apiManagementOperation-3-ServiceName": {
     "type": "String",
-    "value": "ai-loan-agent-apim"
+    "value": "@appsetting('ApiManagementServiceName')"
   },
   "apiManagementOperation-3-BaseUrl": {
     "type": "String",
-    "value": "https://ai-loan-agent-apim.azure-api.net/verify"
+    "value": "@appsetting('ApiManagementVerifyUrl')"
   }
 }

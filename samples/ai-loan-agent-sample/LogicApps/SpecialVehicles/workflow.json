@@ -6,11 +6,11 @@
         "type": "ServiceProvider",
         "inputs": {
           "parameters": {
-            "tableName": "[dbo].[AutoLoanSpecialVehicles]"
+            "query": "SELECT * FROM [dbo].[AutoLoanSpecialVehicles]"
           },
           "serviceProviderConfiguration": {
             "connectionName": "sql",
-            "operationId": "getRows",
+            "operationId": "executeQuery",
             "serviceProviderId": "/serviceProviders/sql"
           }
         },

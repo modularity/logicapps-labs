@@ -71,84 +71,46 @@ $apis = @(
     <inbound>
         <base />
         <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
-        <set-variable name="ssn" value="@{
-            try {
-                var body = ((string)context.Variables["requestBody"]);
-                var json = Newtonsoft.Json.Linq.JObject.Parse(body);
-                return json["SSN"]?.ToString() ?? "000-00-0000";
-            }
-            catch {
-                return "000-00-0000";
-            }
-        }" />
-        <choose>
-            <when condition="@(((string)context.Variables["ssn"]).EndsWith("3456"))">
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "Low",
-                        "RiskScore": 15,
-                        "Recommendation": "Approve"
-                    }</set-body>
-                </mock-response>
-            </when>
-            <when condition="@(((string)context.Variables["ssn"]).EndsWith("7654"))">
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "Medium", 
-                        "RiskScore": 45,
-                        "Recommendation": "Review"
-                    }</set-body>
-                </mock-response>
-            </when>
-            <when condition="@(((string)context.Variables["ssn"]).EndsWith("2233"))">
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "High",
-                        "RiskScore": 75,
-                        "Recommendation": "Decline"
-                    }</set-body>
-                </mock-response>
-            </when>
-            <when condition="@(((string)context.Variables["ssn"]).EndsWith("5566"))">
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "Medium",
-                        "RiskScore": 55,
-                        "Recommendation": "Review"
-                    }</set-body>
-                </mock-response>
-            </when>
-            <when condition="@(((string)context.Variables["ssn"]).EndsWith("8899"))">
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "Low",
-                        "RiskScore": 20,
-                        "Recommendation": "Approve"
-                    }</set-body>
-                </mock-response>
-            </when>
-            <when condition="@(((string)context.Variables["ssn"]).EndsWith("4455"))">
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "Medium",
-                        "RiskScore": 40,
-                        "Recommendation": "Review"
-                    }</set-body>
-                </mock-response>
-            </when>
-            <otherwise>
-                <mock-response status-code="200" content-type="application/json">
-                    <set-body>{
-                        "RiskLevel": "Medium",
-                        "RiskScore": 35,
-                        "Recommendation": "Review"
-                    }</set-body>
-                </mock-response>
-            </otherwise>
-        </choose>
     </inbound>
     <backend>
-        <base />
+        <return-response>
+            <set-status code="200" reason="OK" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@{
+                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                
+                // Sarah Johnson (555-12-3456) - LOW RISK AUTO APPROVAL
+                if (requestBody.Contains("555-12-3456")) {
+                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 12, \"Recommendation\": \"Approve\"}";
+                }
+                // Jennifer Martinez (555-11-2233) - HIGH RISK DECLINE
+                else if (requestBody.Contains("555-11-2233")) {
+                    return "{\"RiskLevel\": \"High\", \"RiskScore\": 85, \"Recommendation\": \"Decline\"}";
+                }
+                // Michael Chen (555-98-7654) - MEDIUM RISK REVIEW
+                else if (requestBody.Contains("555-98-7654")) {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 52, \"Recommendation\": \"Review\"}";
+                }
+                // David Wilson (555-44-5566) - HIGH AMOUNT REVIEW
+                else if (requestBody.Contains("555-44-5566")) {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 48, \"Recommendation\": \"Review\"}";
+                }
+                // Robert Thompson (555-77-8899) - LOW RISK BUT AGE FACTOR
+                else if (requestBody.Contains("555-77-8899")) {
+                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 18, \"Recommendation\": \"Approve\"}";
+                }
+                // Alex Rodriguez (555-33-4455) - MEDIUM RISK YOUNG
+                else if (requestBody.Contains("555-33-4455")) {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 38, \"Recommendation\": \"Review\"}";
+                }
+                // Default
+                else {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 45, \"Recommendation\": \"Review\"}";
+                }
+            }</set-body>
+        </return-response>
     </backend>
     <outbound>
         <base />
@@ -531,33 +493,9 @@ foreach ($api in $apis) {
     Write-Info "Applying mock response policy for: $($api.name)"
     
     try {
-        # Create a simplified policy that works without complex C# expressions
-        # Use the working simple policy approach based on our test
-        $simplifiedPolicy = @"
-<policies>
-    <inbound>
-        <base />
-        <return-response>
-            <set-status code="200" reason="OK" />
-            <set-header name="Content-Type" exists-action="override">
-                <value>application/json</value>
-            </set-header>
-            <set-body>$($api.mockResponseBody)</set-body>
-        </return-response>
-    </inbound>
-    <backend>
-        <base />
-    </backend>
-    <outbound>
-        <base />
-    </outbound>
-    <on-error>
-        <base />
-    </on-error>
-</policies>
-"@
-        
-        $correctedPolicy = $simplifiedPolicy
+        # Use the enhanced policy with SSN-based dynamic responses
+        # This provides realistic scenario diversity for testing
+        $correctedPolicy = $api.mockPolicy
         
         # Create temporary policy file with proper encoding to avoid UTF-8 BOM issues
         $policyFile = "temp-policy-$($api.id).xml"

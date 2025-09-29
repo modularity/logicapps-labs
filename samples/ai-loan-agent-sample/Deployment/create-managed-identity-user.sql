@@ -1,27 +1,27 @@
 -- Create managed identity user for Logic App
 -- Run this with Azure AD authentication
--- UPDATE: Replace 'my-loan-agent-logicapp' with your actual Logic App name
+-- UPDATE: Replace 'your-logic-app-name' with your actual Logic App name
 
-USE [my-loan-agent-db]  -- UPDATE: Replace with your database name
+USE [your-database-name]  -- Replace with your actual database name
 GO
 
 -- Create contained database user for Logic App managed identity
-IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'my-loan-agent-logicapp')
+IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'your-logic-app-name')
 BEGIN
-    CREATE USER [my-loan-agent-logicapp] FROM EXTERNAL PROVIDER;
-    PRINT 'Created user: my-loan-agent-logicapp'
+    CREATE USER [your-logic-app-name] FROM EXTERNAL PROVIDER;
+    PRINT 'Created user: your-logic-app-name'
 END
 ELSE
 BEGIN
-    PRINT 'User my-loan-agent-logicapp already exists'
+    PRINT 'User your-logic-app-name already exists'
 END
 
 -- Grant necessary permissions
-ALTER ROLE db_datareader ADD MEMBER [my-loan-agent-logicapp];
-ALTER ROLE db_datawriter ADD MEMBER [my-loan-agent-logicapp];
+ALTER ROLE db_datareader ADD MEMBER [your-logic-app-name];
+ALTER ROLE db_datawriter ADD MEMBER [your-logic-app-name];
 
 -- Grant execute permissions for stored procedures
-GRANT EXECUTE TO [my-loan-agent-logicapp];
+GRANT EXECUTE TO [your-logic-app-name];
 
 -- Verify the user and permissions
 SELECT 
@@ -32,7 +32,7 @@ SELECT
 FROM sys.database_principals dp 
 LEFT JOIN sys.database_role_members rm ON dp.principal_id = rm.member_principal_id
 LEFT JOIN sys.database_principals r ON rm.role_principal_id = r.principal_id
-WHERE dp.name = 'my-loan-agent-logicapp'  -- UPDATE: Replace with your Logic App name
+WHERE dp.name = 'your-logic-app-name'  -- Replace with your Logic App name
 ORDER BY dp.name, r.name;
 
 PRINT 'Managed identity user setup completed successfully!';

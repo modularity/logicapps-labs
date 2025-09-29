@@ -47,14 +47,12 @@
   "serviceProviderConnections": {
     "sql": {
       "parameterValues": {
-        "server": "ai-loan-agent-sqlserver.database.windows.net",
-        "database": "ai-loan-agent-db"
+        "connectionString": "@appsetting('sql_connectionString')"
       },
-      "parameterSetName": "managedIdentity",
       "serviceProvider": {
         "id": "/serviceProviders/sql"
       },
-      "displayName": "sql_managed_identity"
+      "displayName": "sql"
     }
   },
   "apiManagementConnections": {

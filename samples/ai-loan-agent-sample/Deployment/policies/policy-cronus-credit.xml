@@ -1,16 +1,47 @@
 <policies>
     <inbound>
         <base />
+        <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
+    </inbound>
+    <backend>
         <return-response>
             <set-status code="200" reason="OK" />
             <set-header name="Content-Type" exists-action="override">
                 <value>application/json</value>
             </set-header>
-            <set-body>{"CreditScore": 780, "CreditRating": "Excellent", "DebtToIncomeRatio": 0.20}</set-body>
+            <set-body>@{
+                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                
+                // Sarah Johnson (555-12-3456) - AUTO APPROVAL SCENARIO
+                if (requestBody.Contains("555-12-3456")) {
+                    return "{\"CreditScore\": 780, \"CreditRating\": \"Excellent\", \"DebtToIncomeRatio\": 0.20}";
+                }
+                // Jennifer Martinez (555-11-2233) - HIGH RISK SCENARIO  
+                else if (requestBody.Contains("555-11-2233")) {
+                    return "{\"CreditScore\": 580, \"CreditRating\": \"Poor\", \"DebtToIncomeRatio\": 0.78}";
+                }
+                // Michael Chen (555-98-7654) - HIGH-END VEHICLE REVIEW
+                else if (requestBody.Contains("555-98-7654")) {
+                    return "{\"CreditScore\": 760, \"CreditRating\": \"Excellent\", \"DebtToIncomeRatio\": 0.45}";
+                }
+                // David Wilson (555-44-5566) - LUXURY VEHICLE ALERT
+                else if (requestBody.Contains("555-44-5566")) {
+                    return "{\"CreditScore\": 800, \"CreditRating\": \"Exceptional\", \"DebtToIncomeRatio\": 0.55}";
+                }
+                // Robert Thompson (555-77-8899) - SENIOR APPLICANT
+                else if (requestBody.Contains("555-77-8899")) {
+                    return "{\"CreditScore\": 720, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.30}";
+                }
+                // Alex Rodriguez (555-33-4455) - YOUNG PROFESSIONAL
+                else if (requestBody.Contains("555-33-4455")) {
+                    return "{\"CreditScore\": 680, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.32}";
+                }
+                // Default for testing
+                else {
+                    return "{\"CreditScore\": 650, \"CreditRating\": \"Fair\", \"DebtToIncomeRatio\": 0.40}";
+                }
+            }</set-body>
         </return-response>
-    </inbound>
-    <backend>
-        <base />
     </backend>
     <outbound>
         <base />

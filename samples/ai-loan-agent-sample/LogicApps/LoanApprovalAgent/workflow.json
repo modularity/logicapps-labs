@@ -56,11 +56,11 @@
                                 "type": "ServiceProvider",
                                 "inputs": {
                                     "parameters": {
-                                        "tableName": "[dbo].[CustomersBankHistory]"
+                                        "query": "SELECT * FROM [dbo].[CustomersBankHistory]"
                                     },
                                     "serviceProviderConfiguration": {
                                         "connectionName": "sql",
-                                        "operationId": "getRows",
+                                        "operationId": "executeQuery",
                                         "serviceProviderId": "/serviceProviders/sql"
                                     }
                                 }
@@ -96,7 +96,7 @@
                                 "inputs": {
                                     "host": {
                                         "workflow": {
-                                            "id": "SpecialVehicles"
+                                            "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/sites/ai-loan-agent-logicapp/workflows/SpecialVehicles"
                                         }
                                     }
                                 }
@@ -315,7 +315,7 @@
                 "inputs": {
                     "host": {
                         "workflow": {
-                            "id": "LoanPostProcessing"
+                            "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/sites/ai-loan-agent-logicapp/workflows/LoanPostProcessing"
                         }
                     },
                     "body": "@outputs('Loan_Agent')?['lastAssistantMessage']"

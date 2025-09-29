@@ -741,6 +741,24 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Status "RBAC roles assigned successfully"
 
+# SQL Connection Setup Required
+Write-Header "SQL Managed API Connection Setup Required"
+Write-Warning "IMPORTANT: SQL connection must be created as managed API connection for child workflows"
+Write-Warning "Current configuration uses service provider connection which doesn't inherit to child workflows"
+Write-Warning ""
+Write-Warning "Please follow the steps in SQL-CONNECTION-SETUP.md to create the proper connection:"
+Write-Warning "  Option 1 (Recommended): Use Azure Portal Logic App Designer"
+Write-Warning "  Option 2: Use VS Code Azure Logic Apps extension"
+Write-Warning ""
+Write-Warning "Quick steps:"
+Write-Warning "  1. Azure Portal → Logic Apps → $LOGIC_APP_NAME → Workflows → Designer"
+Write-Warning "  2. Add SQL Server action → Create new connection"
+Write-Warning "  3. Connection name: sql"
+Write-Warning "  4. Authentication: Managed Identity"
+Write-Warning "  5. Server: $SQL_SERVER_NAME.database.windows.net"
+Write-Warning "  6. Database: $SQL_DATABASE_NAME"
+Write-Warning ""
+
 # Display Microsoft Graph permissions requirements
 Write-Header "Microsoft Graph API Permissions Required"
 Write-Warning "IMPORTANT: Microsoft Graph permissions must be granted manually through Azure Portal"
@@ -787,15 +805,6 @@ $openaiResourceId = az cognitiveservices account show `
     --resource-group $ResourceGroup `
     --query "id" `
     --output tsv
-
-Write-Info "Getting SQL connection string..."
-$sqlConnectionString = az sql db show-connection-string `
-    --client ado.net `
-    --name $SQL_DATABASE_NAME `
-    --server $SQL_SERVER_NAME `
-    --output tsv
-
-$sqlConnectionString = $sqlConnectionString.Replace("<username>", $SQL_ADMIN_USERNAME).Replace("<password>", $SqlAdminPasswordPlainText)
 
 Write-Info "Getting API Management subscription keys..."
 # Get all subscriptions in APIM (excluding built-in all-access)
@@ -948,7 +957,7 @@ $localSettings = @{
         agent_ResourceID = $openaiResourceId
         agent_openAIEndpoint = $openaiEndpoint
         agent_openAIKey = $openaiKey
-        sql_connectionString = $sqlConnectionString
+        "sql_connectionString" = $sqlConnectionString
         apiManagementOperation_SubscriptionKey = $apimSubscriptionKey1
         apiManagementOperation_11_SubscriptionKey = $apimSubscriptionKey1
         apiManagementOperation_12_SubscriptionKey = $apimSubscriptionKey2
@@ -980,14 +989,23 @@ Write-Info "1. Setup Database Schema:"
 Write-Info "   - Open Azure Portal → SQL Database → Query Editor"
 Write-Info "   - Authenticate with Microsoft Entra ID"
 Write-Info "   - Run the database-setup.sql script to create tables and sample data"
-Write-Info "2. Grant Microsoft Graph Permissions:"
+Write-Info "2. Deploy using VS Code Azure Logic Apps Extension:"
+Write-Info "   a. Open LogicApps folder in VS Code"
+Write-Info "   b. Install Azure Logic Apps extension" 
+Write-Info "   c. Deploy workflows to ai-loan-agent-logicapp"
+Write-Info "   d. SQL connections will work immediately with connection string authentication"
+Write-Info "3. Grant Microsoft Graph Permissions:"
 Write-Info "   - Run: .\grant-graph-permissions.ps1 -ManagedIdentityPrincipalId '<YOUR-LOGIC-APP-PRINCIPAL-ID>'"
 Write-Info "   - Or use Azure Portal → Microsoft Entra ID → Enterprise Applications method"
-Write-Info "3. Authorize API Connections:"
+Write-Info "4. Authorize API Connections:"
 Write-Info "   - Azure Portal → Logic App → Connections → Authorize each Microsoft 365 connection"
-Write-Info "4. Deploy Logic App workflows using VS Code Azure Logic Apps extension"
-Write-Info "5. Configure Microsoft Forms and Teams workspace (see SETUPCONNECTIONS.md)"
-Write-Info "6. Test the system with a sample loan application"
+Write-Info "5. Deploy Logic App workflows using VS Code Azure Logic Apps extension:"
+Write-Info "   a. Open LogicApps folder in VS Code"
+Write-Info "   b. Install Azure Logic Apps extension"
+Write-Info "   c. Deploy workflows to ai-loan-agent-logicapp"
+Write-Info "   d. All connections including SQL will work immediately with deployed configuration"
+Write-Info "6. Configure Microsoft Forms and Teams workspace (see SETUPCONNECTIONS.md)"
+Write-Info "7. Test the system with a sample loan application"
 
 Write-Header "Important Notes"
 Write-Info "SQL Server: $SQL_SERVER_NAME.database.windows.net"

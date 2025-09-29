@@ -1,16 +1,53 @@
 <policies>
     <inbound>
         <base />
+        <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
+    </inbound>
+    <backend>
         <return-response>
             <set-status code="200" reason="OK" />
             <set-header name="Content-Type" exists-action="override">
                 <value>application/json</value>
             </set-header>
-            <set-body>{"IsEmployed": true, "EmploymentStatus": "Verified", "VerifiedSalary": 85000}</set-body>
+            <set-body>@{
+                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                
+                // Sarah Johnson (555-12-3456) - STABLE EMPLOYMENT AUTO APPROVAL
+                // Microsoft Corporation, 5 years, $85,000 salary
+                if (requestBody.Contains("555-12-3456")) {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 85000, \"EmployerName\": \"Microsoft Corporation\", \"YearsInRole\": 5, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"Excellent\"}";
+                }
+                // Jennifer Martinez (555-11-2233) - STARTUP EMPLOYMENT RISK  
+                // Startup Innovations, 1.5 years, $45,000 salary
+                else if (requestBody.Contains("555-11-2233")) {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 45000, \"EmployerName\": \"Startup Innovations\", \"YearsInRole\": 1.5, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"High Risk - Startup\"}";
+                }
+                // Michael Chen (555-98-7654) - EXCELLENT EMPLOYMENT
+                // Goldman Sachs, 8 years, $150,000 salary
+                else if (requestBody.Contains("555-98-7654")) {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 150000, \"EmployerName\": \"Goldman Sachs\", \"YearsInRole\": 8, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"Excellent\"}";
+                }
+                // David Wilson (555-44-5566) - EXECUTIVE LEVEL EMPLOYMENT
+                // Amazon Web Services, 6 years, $180,000 salary
+                else if (requestBody.Contains("555-44-5566")) {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 180000, \"EmployerName\": \"Amazon Web Services\", \"YearsInRole\": 6, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"Excellent\"}";
+                }
+                // Robert Thompson (555-77-8899) - GOVERNMENT EMPLOYMENT
+                // State Government, 25 years, $95,000 salary
+                else if (requestBody.Contains("555-77-8899")) {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 95000, \"EmployerName\": \"State Government\", \"YearsInRole\": 25, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"Excellent - Government\"}";
+                }
+                // Alex Rodriguez (555-33-4455) - TECH EMPLOYMENT
+                // Google LLC, 3 years, $125,000 salary
+                else if (requestBody.Contains("555-33-4455")) {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 125000, \"EmployerName\": \"Google LLC\", \"YearsInRole\": 3, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"Good - Tech Industry\"}";
+                }
+                // Default for testing
+                else {
+                    return "{\"IsEmployed\": true, \"EmploymentStatus\": \"Verified\", \"VerifiedSalary\": 75000, \"EmployerName\": \"Generic Corporation\", \"YearsInRole\": 2, \"EmploymentType\": \"Full-time\", \"StabilityRating\": \"Standard\"}";
+                }
+            }</set-body>
         </return-response>
-    </inbound>
-    <backend>
-        <base />
     </backend>
     <outbound>
         <base />

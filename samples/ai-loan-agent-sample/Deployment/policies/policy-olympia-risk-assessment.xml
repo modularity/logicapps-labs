@@ -1,16 +1,53 @@
 <policies>
     <inbound>
         <base />
+        <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
+    </inbound>
+    <backend>
         <return-response>
             <set-status code="200" reason="OK" />
             <set-header name="Content-Type" exists-action="override">
                 <value>application/json</value>
             </set-header>
-            <set-body>{"RiskLevel": "Low", "RiskScore": 15, "Recommendation": "Approve"}</set-body>
+            <set-body>@{
+                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                
+                // Sarah Johnson (555-12-3456) - AUTO APPROVAL SCENARIO
+                // Stable employment, good income ratio, standard vehicle
+                if (requestBody.Contains("555-12-3456")) {
+                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 12, \"Recommendation\": \"Approve\", \"Factors\": [\"Stable Employment (5 years)\", \"Good Debt-to-Income Ratio\", \"Standard Vehicle\"]}";
+                }
+                // Jennifer Martinez (555-11-2233) - HIGH RISK SCENARIO  
+                // Low employment tenure, high debt ratio, startup employer
+                else if (requestBody.Contains("555-11-2233")) {
+                    return "{\"RiskLevel\": \"High\", \"RiskScore\": 78, \"Recommendation\": \"Review Required\", \"Factors\": [\"Short Employment Tenure (1.5 years)\", \"High Debt-to-Income Ratio\", \"Startup Employer Risk\", \"Performance Vehicle\"]}";
+                }
+                // Michael Chen (555-98-7654) - HIGH-END VEHICLE REVIEW
+                // Good salary but high-performance luxury vehicle
+                else if (requestBody.Contains("555-98-7654")) {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 45, \"Recommendation\": \"Review Required\", \"Factors\": [\"High-Performance Vehicle (BMW M5)\", \"Large Loan Amount\", \"Excellent Employment History\"]}";
+                }
+                // David Wilson (555-44-5566) - LUXURY VEHICLE ALERT
+                // Ultra-luxury vehicle requiring special handling
+                else if (requestBody.Contains("555-44-5566")) {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 55, \"Recommendation\": \"Special Vehicle Review\", \"Factors\": [\"Ultra-Luxury Vehicle (Mercedes S-Class AMG)\", \"Very High Loan Amount\", \"Stable High Income\"]}";
+                }
+                // Robert Thompson (555-77-8899) - SENIOR APPLICANT
+                // Senior applicant with very stable government employment
+                else if (requestBody.Contains("555-77-8899")) {
+                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 20, \"Recommendation\": \"Approve with Age Consideration\", \"Factors\": [\"Very Stable Employment (25 years)\", \"Government Position\", \"Conservative Vehicle Choice\", \"Senior Applicant\"]}";
+                }
+                // Alex Rodriguez (555-33-4455) - YOUNG PROFESSIONAL
+                // Young age but good tech job and premium vehicle
+                else if (requestBody.Contains("555-33-4455")) {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 38, \"Recommendation\": \"Verify Employment\", \"Factors\": [\"Young Applicant (26 years)\", \"High-Tech Employer\", \"Premium Vehicle (Audi)\", \"Good Salary for Age\"]}";
+                }
+                // Default for testing
+                else {
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 40, \"Recommendation\": \"Standard Review\", \"Factors\": [\"Standard Risk Profile\"]}";
+                }
+            }</set-body>
         </return-response>
-    </inbound>
-    <backend>
-        <base />
     </backend>
     <outbound>
         <base />

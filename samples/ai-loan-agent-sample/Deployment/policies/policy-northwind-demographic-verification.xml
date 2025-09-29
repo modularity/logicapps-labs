@@ -1,16 +1,53 @@
 <policies>
     <inbound>
         <base />
+        <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
+    </inbound>
+    <backend>
         <return-response>
             <set-status code="200" reason="OK" />
             <set-header name="Content-Type" exists-action="override">
                 <value>application/json</value>
             </set-header>
-            <set-body>{"IsVerified": true, "Age": 37, "IdentityConfidence": 98}</set-body>
+            <set-body>@{
+                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                
+                // Sarah Johnson (555-12-3456) - STABLE DEMOGRAPHICS
+                // DOB: 05/15/1988 (Age: 37), stable address history
+                if (requestBody.Contains("555-12-3456")) {
+                    return "{\"IsVerified\": true, \"Age\": 37, \"IdentityConfidence\": 98, \"AddressHistory\": \"Stable\", \"YearsAtCurrentAddress\": 5, \"PreviousAddresses\": 2, \"IdentityScore\": 95}";
+                }
+                // Jennifer Martinez (555-11-2233) - YOUNG WITH LIMITED HISTORY  
+                // DOB: 01/10/1995 (Age: 30), limited address history
+                else if (requestBody.Contains("555-11-2233")) {
+                    return "{\"IsVerified\": true, \"Age\": 30, \"IdentityConfidence\": 82, \"AddressHistory\": \"Limited\", \"YearsAtCurrentAddress\": 1.5, \"PreviousAddresses\": 4, \"IdentityScore\": 78}";
+                }
+                // Michael Chen (555-98-7654) - ESTABLISHED PROFESSIONAL
+                // DOB: 03/22/1982 (Age: 43), excellent address stability
+                else if (requestBody.Contains("555-98-7654")) {
+                    return "{\"IsVerified\": true, \"Age\": 43, \"IdentityConfidence\": 99, \"AddressHistory\": \"Excellent\", \"YearsAtCurrentAddress\": 8, \"PreviousAddresses\": 3, \"IdentityScore\": 97}";
+                }
+                // David Wilson (555-44-5566) - LUXURY BUYER PROFILE
+                // DOB: 08/30/1979 (Age: 46), premium address history
+                else if (requestBody.Contains("555-44-5566")) {
+                    return "{\"IsVerified\": true, \"Age\": 46, \"IdentityConfidence\": 99, \"AddressHistory\": \"Premium\", \"YearsAtCurrentAddress\": 12, \"PreviousAddresses\": 2, \"IdentityScore\": 98}";
+                }
+                // Robert Thompson (555-77-8899) - SENIOR CUSTOMER
+                // DOB: 12/05/1955 (Age: 69), very long address stability
+                else if (requestBody.Contains("555-77-8899")) {
+                    return "{\"IsVerified\": true, \"Age\": 69, \"IdentityConfidence\": 96, \"AddressHistory\": \"Very Stable\", \"YearsAtCurrentAddress\": 25, \"PreviousAddresses\": 1, \"IdentityScore\": 94}";
+                }
+                // Alex Rodriguez (555-33-4455) - YOUNG PROFESSIONAL
+                // DOB: 06/18/1998 (Age: 27), mobile professional
+                else if (requestBody.Contains("555-33-4455")) {
+                    return "{\"IsVerified\": true, \"Age\": 27, \"IdentityConfidence\": 88, \"AddressHistory\": \"Mobile Professional\", \"YearsAtCurrentAddress\": 3, \"PreviousAddresses\": 5, \"IdentityScore\": 85}";
+                }
+                // Default for testing
+                else {
+                    return "{\"IsVerified\": true, \"Age\": 35, \"IdentityConfidence\": 90, \"AddressHistory\": \"Standard\", \"YearsAtCurrentAddress\": 3, \"PreviousAddresses\": 2, \"IdentityScore\": 88}";
+                }
+            }</set-body>
         </return-response>
-    </inbound>
-    <backend>
-        <base />
     </backend>
     <outbound>
         <base />
