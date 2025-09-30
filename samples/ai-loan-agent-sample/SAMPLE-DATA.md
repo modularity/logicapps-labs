@@ -1,23 +1,28 @@
-# AI Loan Agent - Sample Data Scenarios
+# AI Loan Agent - Test Scenarios
 
-This file contains sample form data for demonstrating the AI Loan Agent workflow through Microsoft Forms.
+This file contains test scenarios for validating the AI Loan Agent workflow. The deployment scripts populate the SQL database and mock APIs with specific data to support these test cases.
 
-## How to Use This Data
+## How to Use These Test Scenarios
 
-1. **Access your Microsoft Forms**: Use the Form ID from your workflow configuration
-2. **Copy and paste the data** from the scenarios below into your form
-3. **Submit each scenario** to test different workflow paths
-4. **Monitor Logic Apps runs** in Azure Portal to see the AI processing in action
-5. **Check Teams notifications** for human review cases
+1. **Submit test data** through your Microsoft Forms using the scenarios below
+2. **Monitor Logic Apps runs** in Azure Portal to see the AI processing
+3. **Verify expected outcomes** match the AI agent's decisions
+4. **Check Teams notifications** for human review cases
+5. **Confirm email notifications** are sent with correct status
 
-## Form URL Construction
+## Database & API Test Data
 
-Your Form ID: `v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WDBINVRGVFRSWUUxUlJHWktTODU1Sy4u`
+The deployment scripts populate these data sources:
 
-**Direct Form URL**: 
-```
-https://forms.microsoft.com/r/v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WDBINVRGVFRSWUUxUlJHWktTODU1Sy4u
-```
+**SQL Database Tables:**
+- `CustomersBankHistory` - 8 sample customer records with banking history
+- `AutoLoanSpecialVehicles` - 27 vehicle records (5 Custom, 9 Limited, 13 Luxury)
+
+**Mock APIs (Azure API Management):**
+- **Credit Check API** - Returns credit scores based on SSN patterns  
+- **Employment Verification API** - Validates employer and salary information
+- **Demographics API** - Provides demographic and risk assessment data
+- **Risk Assessment API** - Calculates loan risk profiles
 
 ---
 
@@ -25,6 +30,7 @@ https://forms.microsoft.com/r/v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WD
 
 **Expected Outcome**: Automatic approval with email notification
 
+**Test Data:**
 ```
 Full Name: Sarah Johnson
 Date of Birth: 05/15/1988
@@ -44,18 +50,26 @@ Vehicle Year: 2023
 Vehicle Price: 28000
 ```
 
-**Why this should auto-approve**:
-- Stable employment (5 years)
-- Good salary-to-loan ratio
-- Standard vehicle (not luxury)
-- Reasonable loan amount
+**Why this auto-approves:**
+- SSN pattern `555-12-XXXX` triggers high credit score in Credit Check API
+- `Microsoft Corporation` validates successfully in Employment API  
+- Salary-to-loan ratio is favorable (85K salary, 25K loan)
+- Toyota Camry is standard vehicle (not in special vehicles database)
+- Customer may have positive banking history in SQL database
+
+**AI Agent Decision Factors:**
+- ✅ Credit score: High (based on SSN pattern)
+- ✅ Employment: Stable (5 years, reputable employer)
+- ✅ Debt-to-income: Low risk (29% ratio)
+- ✅ Vehicle type: Standard (no special handling required)
 
 ---
 
-## Test Scenario 2: High-End Vehicle Review ⚠️
+## Test Scenario 2: Luxury Vehicle Review ⚠️
 
 **Expected Outcome**: Human review required via Teams notification
 
+**Test Data:**
 ```
 Full Name: Michael Chen
 Date of Birth: 03/22/1982
@@ -75,17 +89,31 @@ Vehicle Year: 2024
 Vehicle Price: 85000
 ```
 
-**Why this triggers review**:
-- High-performance vehicle (BMW M5)
-- Large loan amount
-- Should trigger special vehicle check
+**Why this triggers human review:**
+- BMW M5 Competition is in the `AutoLoanSpecialVehicles` table as a **Luxury** vehicle
+- SpecialVehicles child workflow detects high-performance vehicle
+- AI agent policy requires human approval for luxury vehicles regardless of creditworthiness
+- Large loan amount adds to review requirements
+
+**AI Agent Decision Factors:**
+- ✅ Credit score: High (555-98-XXXX pattern)
+- ✅ Employment: Excellent (Goldman Sachs, 8 years)
+- ✅ Debt-to-income: Good (50% ratio, high income)
+- ⚠️ Vehicle type: **Luxury** (triggers mandatory human review)
+
+**Teams Notification Content:**
+- Customer profile and loan details
+- Vehicle flagged as luxury/high-performance
+- AI recommendation with reasoning
+- Approve/Reject action buttons
 
 ---
 
 ## Test Scenario 3: High Risk Profile ⚠️
 
-**Expected Outcome**: Human review due to risk factors
+**Expected Outcome**: Human review due to multiple risk factors
 
+**Test Data:**
 ```
 Full Name: Jennifer Martinez
 Date of Birth: 01/10/1995
@@ -105,18 +133,27 @@ Vehicle Year: 2022
 Vehicle Price: 45000
 ```
 
-**Risk factors**:
-- Low employment tenure (1.5 years)
-- High debt-to-income ratio
-- Startup employer (potentially unstable)
-- Performance vehicle
+**Why this triggers human review:**
+- SSN pattern `555-11-XXXX` may return moderate credit score from Credit Check API
+- Employment Verification API flags short tenure (1.5 years) as risk factor
+- Demographics API identifies high debt-to-income ratio (89%)
+- Risk Assessment API calculates elevated risk profile
+- Ford Mustang GT may be flagged as performance vehicle in database
+
+**AI Agent Decision Factors:**
+- ⚠️ Credit score: Moderate (SSN pattern-based)
+- ⚠️ Employment: Short tenure (startup, 1.5 years)
+- ❌ Debt-to-income: High risk (89% ratio)
+- ⚠️ Vehicle type: Performance (Mustang GT)
+- ❌ Risk profile: Multiple red flags detected
 
 ---
 
-## Test Scenario 4: Luxury Vehicle Alert 🚨
+## Test Scenario 4: Ultra-Luxury Vehicle 🚨
 
-**Expected Outcome**: Special vehicle processing + human review
+**Expected Outcome**: Special vehicle workflow + mandatory human approval
 
+**Test Data:**
 ```
 Full Name: David Wilson
 Date of Birth: 08/30/1979
@@ -136,18 +173,26 @@ Vehicle Year: 2024
 Vehicle Price: 150000
 ```
 
-**Luxury factors**:
-- Ultra-luxury vehicle (Mercedes S-Class AMG)
-- Very high loan amount ($120K)
-- Should trigger special vehicle workflow
-- Requires human approval regardless of credit
+**Why this requires special handling:**
+- Mercedes S-Class AMG S63 is in `AutoLoanSpecialVehicles` table as **Ultra-Luxury**
+- SpecialVehicles workflow detects vehicle requiring enhanced documentation
+- Vehicle price exceeds $100K threshold triggering additional policies
+- AI agent policy mandates human approval for ultra-luxury regardless of credit
+
+**AI Agent Decision Factors:**
+- ✅ Credit score: Excellent (555-44-XXXX pattern)
+- ✅ Employment: Outstanding (AWS, 6 years, high salary)
+- ✅ Debt-to-income: Acceptable (67% ratio)
+- 🚨 Vehicle type: **Ultra-Luxury** (special workflow required)
+- 🚨 Loan amount: High value ($120K+)
 
 ---
 
-## Test Scenario 5: Edge Case - Senior Applicant 👴
+## Test Scenario 5: Senior Applicant with Stable History 👴
 
 **Expected Outcome**: Standard processing with age consideration
 
+**Test Data:**
 ```
 Full Name: Robert Thompson
 Date of Birth: 12/05/1955
@@ -167,18 +212,27 @@ Vehicle Year: 2024
 Vehicle Price: 38000
 ```
 
-**Edge case factors**:
-- Senior applicant (68 years old)
-- Very stable employment (25 years)
-- Government job (stable income)
-- Conservative vehicle choice
+**Expected AI processing:**
+- SSN pattern `555-77-XXXX` returns stable credit history from Credit Check API
+- Employment API validates government employment as highly stable
+- Demographics API considers age (68) but balances with long employment
+- Honda Accord is standard vehicle (not in special vehicles database)
+- May have excellent banking history in SQL database
+
+**AI Agent Decision Factors:**
+- ✅ Credit score: Excellent (long credit history)
+- ✅ Employment: Maximum stability (government, 25 years)
+- ✅ Debt-to-income: Conservative (37% ratio)
+- ✅ Vehicle type: Standard, reliable choice
+- ✅ Overall profile: Low risk despite age consideration
 
 ---
 
-## Test Scenario 6: Young Professional 👨‍💼
+## Test Scenario 6: Young High Earner 👨‍💼
 
-**Expected Outcome**: Possible approval with verification
+**Expected Outcome**: Likely approval with income verification
 
+**Test Data:**
 ```
 Full Name: Alex Rodriguez
 Date of Birth: 06/18/1998
@@ -198,125 +252,137 @@ Vehicle Year: 2024
 Vehicle Price: 50000
 ```
 
-**Young professional factors**:
-- Young age (26 years)
-- High-tech employer
-- Good salary for age
-- Premium vehicle (Audi)
+**Expected AI processing:**
+- SSN pattern `555-33-XXXX` may return moderate credit score (limited credit history)
+- Employment API validates Google as premium employer with high compensation
+- Demographics API balances young age with high income potential
+- Risk Assessment API weighs income stability vs. limited history
+- Audi A4 may be in special vehicles database as **Limited** category
+
+**AI Agent Decision Factors:**
+- ⚠️ Credit score: Moderate (young, limited history)
+- ✅ Employment: Excellent (Google, tech sector, high salary)
+- ✅ Debt-to-income: Good (36% ratio)
+- ⚠️ Vehicle type: Premium (may require additional review)
+- ✅ Income trajectory: Strong future earning potential
 
 ---
 
 ## Expected Workflow Behavior
 
-### For Each Submission:
+### API Response Patterns
 
-1. **Forms Trigger** → Logic App starts
-2. **Get Response Details** → Extracts form data
-3. **Credit Check API** → Simulated credit score lookup
-4. **Background Check API** → Verifies applicant information
-5. **Employment Verification API** → Confirms employment details
-6. **Application Summary** → Compiles all data for AI agent
-7. **AI Agent (GPT-4.1)** → Evaluates using company policy
-8. **Special Vehicle Check** → Checks luxury vehicle database
-9. **Decision Processing** → Auto-approve or escalate
-10. **Notifications** → Email + Teams (if human review needed)
-11. **Post-Processing** → Loan setup workflows
+**Credit Check API (based on SSN patterns):**
+- `555-12-XXXX`: High credit score (750+)
+- `555-98-XXXX`: High credit score (720+)
+- `555-11-XXXX`: Moderate credit score (650-699)
+- `555-44-XXXX`: Excellent credit score (800+)
+- `555-77-XXXX`: Excellent credit score (780+)
+- `555-33-XXXX`: Moderate credit score (680-720)
+
+**Employment Verification API (employer validation):**
+- Major corporations (Microsoft, Google, Amazon): ✅ Verified, stable
+- Financial institutions (Goldman Sachs): ✅ Premium employers
+- Government agencies: ✅ Maximum stability
+- Startups: ⚠️ Flagged for review
+
+**Special Vehicles Database (`AutoLoanSpecialVehicles` table):**
+- **Custom**: Rare/collectible vehicles requiring specialist approval
+- **Limited**: Premium vehicles needing enhanced documentation  
+- **Luxury**: High-end vehicles requiring human review
+- Standard vehicles (Toyota Camry, Honda Accord): No special handling
+
+### AI Agent Decision Process
+
+For each loan application, the AI agent:
+
+1. **Gathers Data**: Credit, employment, demographics from APIs
+2. **Queries Database**: Customer banking history, special vehicle lookup
+3. **Applies Policy**: Loan-to-income ratios, vehicle restrictions, risk thresholds
+4. **Makes Decision**: Auto-approve, auto-reject, or escalate for human review
+5. **Triggers Actions**: Email notifications, Teams alerts, post-processing workflows
 
 ### Teams Notifications
 
-Human review cases will send notifications to your configured Teams channel with:
-- Applicant details
-- Risk factors identified
-- Recommended actions
-- Approval/rejection buttons
+Human review cases trigger Teams adaptive cards with:
+- Complete applicant profile and loan details
+- Risk factors and AI analysis
+- Vehicle classification and special requirements
+- Recommended action with reasoning
+- Approve/Reject buttons with comment fields
 
 ### Email Notifications
 
-All applicants receive email confirmations with:
-- Application status
-- Next steps
-- Contact information for questions
+All applicants receive status emails:
+- **Auto-Approved**: Welcome email with next steps and loan officer contact
+- **Auto-Rejected**: Explanation with improvement suggestions and appeal process
+- **Under Review**: Acknowledgment with expected timeline and human contact info
 
----
-
-## Monitoring Your Tests
+## Monitoring & Validation
 
 ### Azure Portal - Logic Apps Monitoring
 
-1. Navigate to **Azure Portal** → **Resource Groups** → **[YOUR-RESOURCE-GROUP]**
-2. Click on **[YOUR-LOGIC-APP]**
+1. Navigate to **Azure Portal** → **Resource Groups** → **[your-resource-group]**
+2. Click on your **Logic App** resource
 3. Go to **Workflows** → **LoanApprovalAgent**
 4. Check **Runs history** for real-time execution
-5. Click on any run to see detailed step-by-step execution
+5. Click on any run to see detailed step-by-step execution including:
+   - API responses from Credit Check, Employment, Demographics
+   - SQL query results from SpecialVehicles workflow
+   - AI agent reasoning and decision process
+   - Teams and email notification status
 
-### Teams Channel Monitoring
+### Database Validation
 
-Check your configured Teams channel for:
-- Human review notifications
-- Approval request cards
-- Risk assessment summaries
+Check the populated test data in your SQL database:
+```sql
+-- View customer banking history
+SELECT * FROM CustomersBankHistory;
 
-### Email Verification
+-- View special vehicles database
+SELECT * FROM AutoLoanSpecialVehicles 
+WHERE VehicleCategory IN ('Custom', 'Limited', 'Luxury');
+```
 
-Monitor the email addresses used in test scenarios for:
-- Application confirmations
-- Approval/rejection notifications
-- Next steps instructions
+### API Response Testing
 
----
+Monitor API Management responses:
+1. **Azure Portal** → **API Management** → **APIs**
+2. Test individual APIs with sample SSNs to verify response patterns
+3. Check subscription keys are working correctly
 
-## Troubleshooting
+## Troubleshooting Test Scenarios
 
 ### If Workflow Doesn't Trigger
 - Verify Microsoft Forms connection is authorized
-- Check form submission went through
-- Confirm form ID matches workflow configuration
+- Check that form submission completed successfully
+- Confirm Forms trigger is properly configured
 
-### If AI Agent Fails
-- Check OpenAI connection and API key
-- Verify GPT-4.1 deployment is available
-- Review agent tool configurations
+### If AI Agent Decisions Don't Match Expected
+- Review AI agent prompt and policy document
+- Check API responses are returning expected data patterns
+- Verify special vehicles database contains test data
+- Review Azure OpenAI model deployment (GPT-4.1)
 
-### If Teams Notifications Don't Work
-- Verify Teams connection authorization
+### If Teams Notifications Missing
+- Verify Teams connection authorization in Azure Portal
 - Check Group ID and Channel ID configuration
-- Confirm managed identity permissions
+- Confirm Microsoft Graph permissions are granted
 
-### If APIs Fail
-- Check SQL connection string
-- Verify API Management subscription keys
-- Review external API endpoints
+### If Wrong Email Notifications
+- Check email addresses in test scenarios
+- Verify Outlook connection authentication
+- Review post-processing workflow logic
 
----
+## Test Data Patterns Summary
 
-## Next Steps After Testing
+| SSN Pattern | Credit Score | Employment Examples | Vehicle Examples | Expected Outcome |
+|-------------|--------------|-------------------|------------------|------------------|
+| `555-12-XXXX` | High (750+) | Microsoft, stable | Standard vehicles | Auto-Approve |
+| `555-98-XXXX` | High (720+) | Goldman Sachs | Luxury vehicles | Human Review |
+| `555-11-XXXX` | Moderate (650-699) | Startups | Performance vehicles | Human Review |
+| `555-44-XXXX` | Excellent (800+) | Amazon/AWS | Ultra-luxury | Mandatory Review |
+| `555-77-XXXX` | Excellent (780+) | Government | Standard vehicles | Auto-Approve |
+| `555-33-XXXX` | Moderate (680-720) | Google/Tech | Premium vehicles | Likely Approve |
 
-1. **Analyze Results** → Review which scenarios worked as expected
-2. **Adjust Policies** → Modify AI agent instructions if needed
-3. **Fine-tune Thresholds** → Update risk assessment criteria
-4. **Production Deployment** → Move to live Forms with real data
-5. **User Training** → Train loan officers on Teams notifications
-6. **Monitoring Setup** → Configure alerts for failed runs
-
----
-
-## Additional Test Variations
-
-You can create additional test cases by varying:
-
-- **Credit Scores**: Modify the SSN to trigger different credit responses
-- **Employment Types**: Try different employers (banks, startups, government)
-- **Vehicle Categories**: Test electric vehicles, classics, motorcycles
-- **Loan Amounts**: Test minimum/maximum thresholds
-- **Geographic Factors**: Different states (if applicable to policy)
-
-## Form Field Validation
-
-Ensure your Microsoft Forms includes validation for:
-- **SSN Format**: XXX-XX-XXXX pattern
-- **Email Format**: Valid email addresses
-- **Phone Format**: (XXX) XXX-XXXX pattern
-- **Date Format**: MM/DD/YYYY for dates
-- **Numeric Fields**: Salary and loan amounts as numbers only
-
-This comprehensive test suite will help you validate all aspects of your AI Loan Agent workflow and ensure it handles various real-world scenarios appropriately.
+This test data design ensures comprehensive validation of all workflow paths and AI agent decision-making scenarios.

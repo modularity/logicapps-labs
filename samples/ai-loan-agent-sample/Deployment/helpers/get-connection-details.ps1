@@ -1,3 +1,29 @@
+#!/usr/bin/env powershell
+
+<#
+.SYNOPSIS
+    Extract Microsoft 365 connection details for AI Loan Agent Logic Apps
+.DESCRIPTION
+    This script extracts connection details and runtime URLs for Microsoft 365 
+    connections used by the AI Loan Agent Logic Apps workflows.
+.PARAMETER SubscriptionId
+    Azure subscription ID where resources are deployed
+.PARAMETER ResourceGroup
+    Name of the resource group containing the Logic Apps connections
+.EXAMPLE
+    .\get-connection-details.ps1 -SubscriptionId "12345678-abcd-efgh-ijkl-123456789012" -ResourceGroup "ai-loan-agent-rg"
+.EXAMPLE
+    .\get-connection-details.ps1
+#>
+
+param(
+    [Parameter()]
+    [string]$SubscriptionId = "12345678-abcd-efgh-ijkl-123456789012",
+    
+    [Parameter()]
+    [string]$ResourceGroup = "ai-loan-agent-rg"
+)
+
 # Azure CLI Script to Extract Microsoft 365 Connection Details
 # for AI Loan Agent Logic Apps
 
@@ -5,22 +31,23 @@ Write-Host "🔑 Extracting Microsoft 365 Connection Details" -ForegroundColor C
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Variables - UPDATE THESE VALUES FOR YOUR DEPLOYMENT
-$subscriptionId = "12345678-abcd-efgh-ijkl-123456789012"  # Replace with your subscription ID
-$resourceGroup = "my-loan-agent-rg"                    # Replace with your resource group name
+Write-Host "📋 Using Configuration:" -ForegroundColor Yellow
+Write-Host "  Subscription ID: $SubscriptionId" -ForegroundColor Cyan
+Write-Host "  Resource Group: $ResourceGroup" -ForegroundColor Cyan
+Write-Host ""
 
 # Login and set subscription
 Write-Host "🔐 Logging into Azure..." -ForegroundColor Yellow
 az login --only-show-errors
 
 Write-Host "📋 Setting subscription..." -ForegroundColor Yellow
-az account set --subscription $subscriptionId
+az account set --subscription $SubscriptionId
 
 Write-Host ""
 Write-Host "🔍 Looking for Microsoft 365 connections..." -ForegroundColor Yellow
 
 # Get all connections in the resource group
-$connections = az resource list --resource-group $resourceGroup --resource-type "Microsoft.Web/connections" --query "[].{name:name, type:type}" --output json | ConvertFrom-Json
+$connections = az resource list --resource-group $ResourceGroup --resource-type "Microsoft.Web/connections" --query "[].{name:name, type:type}" --output json | ConvertFrom-Json
 
 Write-Host "Found $($connections.Count) connection(s):" -ForegroundColor Green
 foreach ($conn in $connections) {
@@ -36,7 +63,7 @@ function Get-ConnectionDetails {
     Write-Host "📡 Getting details for connection: $connectionName" -ForegroundColor Yellow
     
     try {
-        $connectionDetails = az resource show --resource-group $resourceGroup --name $connectionName --resource-type "Microsoft.Web/connections" --query "properties" --output json | ConvertFrom-Json
+        $connectionDetails = az resource show --resource-group $ResourceGroup --name $connectionName --resource-type "Microsoft.Web/connections" --query "properties" --output json | ConvertFrom-Json
         
         if ($connectionDetails) {
             $runtimeUrl = $connectionDetails.connectionRuntimeUrl

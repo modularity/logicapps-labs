@@ -1,7 +1,7 @@
 {
   "agentConnections": {
     "agent": {
-      "displayName": "new_conn_5643d",
+      "displayName": "Azure OpenAI Agent",
       "authentication": {
         "type": "Key",
         "key": "@appsetting('agent_openAIKey')"
@@ -12,36 +12,36 @@
     }
   },
   "managedApiConnections": {
-    "microsoftforms-2": {
+    "formsConnection": {
       "api": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/microsoftforms"
       },
       "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/microsoftforms-2"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/formsConnection"
       },
-      "authentication": "@parameters('microsoftforms-2-Authentication')",
-      "connectionRuntimeUrl": "@parameters('microsoftforms-2-ConnectionRuntimeUrl')"
+      "authentication": "@parameters('formsConnection-Authentication')",
+      "connectionRuntimeUrl": "@parameters('formsConnection-ConnectionRuntimeUrl')"
     },
 
-    "teams-1": {
+    "teamsConnection": {
       "api": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/teams"
       },
       "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/teams-1"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/teamsConnection"
       },
-      "authentication": "@parameters('teams-1-Authentication')",
-      "connectionRuntimeUrl": "@parameters('teams-1-ConnectionRuntimeUrl')"
+      "authentication": "@parameters('teamsConnection-Authentication')",
+      "connectionRuntimeUrl": "@parameters('teamsConnection-ConnectionRuntimeUrl')"
     },
-    "office365": {
+    "outlookConnection": {
       "api": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/office365"
       },
       "connection": {
-        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/office365"
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/outlookConnection"
       },
-      "authentication": "@parameters('office365-Authentication')",
-      "connectionRuntimeUrl": "@parameters('office365-ConnectionRuntimeUrl')"
+      "authentication": "@parameters('outlookConnection-Authentication')",
+      "connectionRuntimeUrl": "@parameters('outlookConnection-ConnectionRuntimeUrl')"
     }
   },
   "serviceProviderConnections": {
@@ -56,29 +56,29 @@
     }
   },
   "apiManagementConnections": {
-    "apiManagementOperation": {
-      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('apiManagementOperation-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('apiManagementOperation-ServiceName')}/apis/olympia-risk-assessment",
-      "baseUrl": "@parameters('apiManagementOperation-BaseUrl')",
-      "subscriptionKey": "@appsetting('apiManagementOperation_SubscriptionKey')",
-      "displayName": "new_conn_ecac8"
+    "riskAssessmentAPI": {
+      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('riskAssessmentAPI-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('riskAssessmentAPI-ServiceName')}/apis/olympia-risk-assessment",
+      "baseUrl": "@parameters('riskAssessmentAPI-BaseUrl')",
+      "subscriptionKey": "@appsetting('riskAssessmentAPI_SubscriptionKey')",
+      "displayName": "Risk Assessment API"
     },
-    "apiManagementOperation-1": {
-      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('apiManagementOperation-1-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('apiManagementOperation-1-ServiceName')}/apis/litware-employment-validation",
-      "baseUrl": "@parameters('apiManagementOperation-1-BaseUrl')",
-      "subscriptionKey": "@appsetting('apiManagementOperation_11_SubscriptionKey')",
-      "displayName": "new_conn_0d73b"
+    "employmentValidationAPI": {
+      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('employmentValidationAPI-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('employmentValidationAPI-ServiceName')}/apis/litware-employment-validation",
+      "baseUrl": "@parameters('employmentValidationAPI-BaseUrl')",
+      "subscriptionKey": "@appsetting('employmentValidationAPI_SubscriptionKey')",
+      "displayName": "Employment Validation API"
     },
-    "apiManagementOperation-2": {
-      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('apiManagementOperation-2-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('apiManagementOperation-2-ServiceName')}/apis/cronus-credit",
-      "baseUrl": "@parameters('apiManagementOperation-2-BaseUrl')",
-      "subscriptionKey": "@appsetting('apiManagementOperation_12_SubscriptionKey')",
-      "displayName": "new_conn_4e6e0"
+    "creditCheckAPI": {
+      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('creditCheckAPI-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('creditCheckAPI-ServiceName')}/apis/cronus-credit",
+      "baseUrl": "@parameters('creditCheckAPI-BaseUrl')",
+      "subscriptionKey": "@appsetting('creditCheckAPI_SubscriptionKey')",
+      "displayName": "Credit Check API"
     },
-    "apiManagementOperation-3": {
-      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('apiManagementOperation-3-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('apiManagementOperation-3-ServiceName')}/apis/northwind-demographic-verification",
-      "baseUrl": "@parameters('apiManagementOperation-3-BaseUrl')",
-      "subscriptionKey": "@appsetting('apiManagementOperation_13_SubscriptionKey')",
-      "displayName": "new_conn_7f62c"
+    "demographicVerificationAPI": {
+      "apiId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{parameters('demographicVerificationAPI-ResourceGroup')}/providers/Microsoft.ApiManagement/service/@{parameters('demographicVerificationAPI-ServiceName')}/apis/northwind-demographic-verification",
+      "baseUrl": "@parameters('demographicVerificationAPI-BaseUrl')",
+      "subscriptionKey": "@appsetting('demographicVerificationAPI_SubscriptionKey')",
+      "displayName": "Demographic Verification API"
     }
   }
 }

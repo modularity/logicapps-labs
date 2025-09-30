@@ -3,40 +3,40 @@
     "type": "String",
     "value": "@appsetting('PolicyDocumentURI')"
   },
-  "microsoftforms-2-ConnectionRuntimeUrl": {
+  "formsConnection-ConnectionRuntimeUrl": {
     "type": "String",
-    "value": "@appsetting('microsoftforms-2-ConnectionRuntimeUrl')"
+    "value": "@appsetting('formsConnection-ConnectionRuntimeUrl')"
   },
-  "microsoftforms-2-Authentication": {
+  "formsConnection-Authentication": {
     "type": "Object",
     "value": {
       "type": "Raw",
       "scheme": "Key",
-      "parameter": "@appsetting('microsoftforms-2-connectionKey')"
+      "parameter": "@appsetting('formsConnection-connectionKey')"
     }
   },
-  "teams-1-ConnectionRuntimeUrl": {
+  "teamsConnection-ConnectionRuntimeUrl": {
     "type": "String",
-    "value": "@appsetting('teams-1-ConnectionRuntimeUrl')"
+    "value": "@appsetting('teamsConnection-ConnectionRuntimeUrl')"
   },
-  "teams-1-Authentication": {
+  "teamsConnection-Authentication": {
     "type": "Object",
     "value": {
       "type": "Raw",
       "scheme": "Key",
-      "parameter": "@appsetting('teams-1-connectionKey')"
+      "parameter": "@appsetting('teamsConnection-connectionKey')"
     }
   },
-  "office365-ConnectionRuntimeUrl": {
+  "outlookConnection-ConnectionRuntimeUrl": {
     "type": "String",
-    "value": "@appsetting('office365-ConnectionRuntimeUrl')"
+    "value": "@appsetting('outlookConnection-ConnectionRuntimeUrl')"
   },
-  "office365-Authentication": {
+  "outlookConnection-Authentication": {
     "type": "Object",
     "value": {
       "type": "Raw",
       "scheme": "Key",
-      "parameter": "@appsetting('office365-connectionKey')"
+      "parameter": "@appsetting('outlookConnection-connectionKey')"
     }
   },
   "PolicyDocumentURL": {
@@ -63,51 +63,51 @@
     "type": "String",
     "value": "@appsetting('LoanPolicyDocumentUrl')"
   },
-  "apiManagementOperation-ResourceGroup": {
+  "riskAssessmentAPI-ResourceGroup": {
     "type": "String",
     "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
-  "apiManagementOperation-ServiceName": {
+  "riskAssessmentAPI-ServiceName": {
     "type": "String",
     "value": "@appsetting('ApiManagementServiceName')"
   },
-  "apiManagementOperation-BaseUrl": {
+  "riskAssessmentAPI-BaseUrl": {
     "type": "String",
     "value": "@appsetting('ApiManagementBaseUrl')"
   },
-  "apiManagementOperation-1-ResourceGroup": {
+  "employmentValidationAPI-ResourceGroup": {
     "type": "String",
     "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
-  "apiManagementOperation-1-ServiceName": {
+  "employmentValidationAPI-ServiceName": {
     "type": "String",
     "value": "@appsetting('ApiManagementServiceName')"
   },
-  "apiManagementOperation-1-BaseUrl": {
+  "employmentValidationAPI-BaseUrl": {
     "type": "String",
     "value": "@appsetting('ApiManagementEmploymentUrl')"
   },
-  "apiManagementOperation-2-ResourceGroup": {
+  "creditCheckAPI-ResourceGroup": {
     "type": "String",
     "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
-  "apiManagementOperation-2-ServiceName": {
+  "creditCheckAPI-ServiceName": {
     "type": "String",
     "value": "@appsetting('ApiManagementServiceName')"
   },
-  "apiManagementOperation-2-BaseUrl": {
+  "creditCheckAPI-BaseUrl": {
     "type": "String",
     "value": "@appsetting('ApiManagementCreditUrl')"
   },
-  "apiManagementOperation-3-ResourceGroup": {
+  "demographicVerificationAPI-ResourceGroup": {
     "type": "String",
     "value": "@appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')"
   },
-  "apiManagementOperation-3-ServiceName": {
+  "demographicVerificationAPI-ServiceName": {
     "type": "String",
     "value": "@appsetting('ApiManagementServiceName')"
   },
-  "apiManagementOperation-3-BaseUrl": {
+  "demographicVerificationAPI-BaseUrl": {
     "type": "String",
     "value": "@appsetting('ApiManagementVerifyUrl')"
   }

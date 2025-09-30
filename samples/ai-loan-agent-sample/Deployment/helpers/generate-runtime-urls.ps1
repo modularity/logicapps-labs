@@ -1,3 +1,29 @@
+#!/usr/bin/env powershell
+
+<#
+.SYNOPSIS
+    Generate Logic Apps Standard connection runtime URLs
+.DESCRIPTION
+    This script generates the correct runtime URLs based on Azure connection IDs
+    for Logic Apps Standard connections.
+.PARAMETER SubscriptionId
+    Azure subscription ID where resources are deployed
+.PARAMETER ResourceGroup
+    Name of the resource group containing the Logic Apps connections
+.EXAMPLE
+    .\generate-runtime-urls.ps1 -SubscriptionId "12345678-abcd-efgh-ijkl-123456789012" -ResourceGroup "ai-loan-agent-rg"
+.EXAMPLE
+    .\generate-runtime-urls.ps1
+#>
+
+param(
+    [Parameter()]
+    [string]$SubscriptionId = "12345678-abcd-efgh-ijkl-123456789012",
+    
+    [Parameter()]
+    [string]$ResourceGroup = "ai-loan-agent-rg"
+)
+
 # Extract Connection Runtime URLs for Logic Apps Standard
 # This script generates the correct runtime URLs based on Azure connection IDs
 
@@ -5,10 +31,10 @@ Write-Host "🔗 Generating Logic Apps Standard Connection Runtime URLs" -Foregr
 Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Variables - UPDATE THESE VALUES FOR YOUR DEPLOYMENT
-$subscriptionId = "12345678-abcd-efgh-ijkl-123456789012"  # Replace with your subscription ID
-$resourceGroup = "my-loan-agent-rg"                    # Replace with your resource group name
-$location = "eastus2"
+Write-Host "📋 Using Configuration:" -ForegroundColor Yellow
+Write-Host "  Subscription ID: $SubscriptionId" -ForegroundColor Cyan
+Write-Host "  Resource Group: $ResourceGroup" -ForegroundColor Cyan
+Write-Host ""
 
 # For Logic Apps Standard, connection runtime URLs follow this pattern:
 # https://management.azure.com/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Web/connections/{connectionName}
@@ -17,21 +43,21 @@ Write-Host "📝 Generating Runtime URLs..." -ForegroundColor Yellow
 Write-Host ""
 
 # Microsoft Forms Connection
-$formsRuntimeUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Web/connections/microsoftforms-2"
+$formsRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/microsoftforms-2"
 Write-Host "Microsoft Forms:" -ForegroundColor Green
 Write-Host "  Connection: microsoftforms-2" -ForegroundColor Cyan
 Write-Host "  Runtime URL: $formsRuntimeUrl" -ForegroundColor Yellow
 Write-Host ""
 
 # Microsoft Teams Connection
-$teamsRuntimeUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Web/connections/teams-1"
+$teamsRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/teams-1"
 Write-Host "Microsoft Teams:" -ForegroundColor Green
 Write-Host "  Connection: teams-1" -ForegroundColor Cyan
 Write-Host "  Runtime URL: $teamsRuntimeUrl" -ForegroundColor Yellow
 Write-Host ""
 
 # Office 365 Connection
-$outlookRuntimeUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$resourceGroup/providers/Microsoft.Web/connections/office365"
+$outlookRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/office365"
 Write-Host "Office 365 Outlook:" -ForegroundColor Green
 Write-Host "  Connection: office365" -ForegroundColor Cyan
 Write-Host "  Runtime URL: $outlookRuntimeUrl" -ForegroundColor Yellow

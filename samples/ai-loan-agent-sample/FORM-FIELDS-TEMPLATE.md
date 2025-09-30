@@ -110,7 +110,7 @@ Use this template when creating your "Vehicle Loan Application" form in Microsof
 
 The Form ID can be found in the sharing URL:
 - Short URL: `https://forms.microsoft.com/r/[FORM_ID]`
-- Example: `https://forms.microsoft.com/r/S9HTy9dcR0`
-- Form ID: `S9HTy9dcR0`
+- Example: `https://forms.microsoft.com/r/abcd12345`
+- Form ID: `abcd12345`
 
 This Form ID will be used in the Logic Apps connection configuration.
