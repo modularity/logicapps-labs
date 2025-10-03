@@ -43,23 +43,23 @@ Write-Host "📝 Generating Runtime URLs..." -ForegroundColor Yellow
 Write-Host ""
 
 # Microsoft Forms Connection
-$formsRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/microsoftforms-2"
+$formsRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/formsConnection"
 Write-Host "Microsoft Forms:" -ForegroundColor Green
-Write-Host "  Connection: microsoftforms-2" -ForegroundColor Cyan
+Write-Host "  Connection: formsConnection" -ForegroundColor Cyan
 Write-Host "  Runtime URL: $formsRuntimeUrl" -ForegroundColor Yellow
 Write-Host ""
 
 # Microsoft Teams Connection
-$teamsRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/teams-1"
+$teamsRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/teamsConnection"
 Write-Host "Microsoft Teams:" -ForegroundColor Green
-Write-Host "  Connection: teams-1" -ForegroundColor Cyan
+Write-Host "  Connection: teamsConnection" -ForegroundColor Cyan
 Write-Host "  Runtime URL: $teamsRuntimeUrl" -ForegroundColor Yellow
 Write-Host ""
 
 # Office 365 Connection
-$outlookRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/office365"
+$outlookRuntimeUrl = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/outlookConnection"
 Write-Host "Office 365 Outlook:" -ForegroundColor Green
-Write-Host "  Connection: office365" -ForegroundColor Cyan
+Write-Host "  Connection: outlookConnection" -ForegroundColor Cyan
 Write-Host "  Runtime URL: $outlookRuntimeUrl" -ForegroundColor Yellow
 Write-Host ""
 
@@ -69,9 +69,9 @@ Write-Host ""
 Write-Host "Copy these values to your local.settings.json:" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "`"microsoftforms-2-ConnectionRuntimeUrl`": `"$formsRuntimeUrl`"," -ForegroundColor Yellow
-Write-Host "`"teams-1-ConnectionRuntimeUrl`": `"$teamsRuntimeUrl`"," -ForegroundColor Yellow
-Write-Host "`"office365-ConnectionRuntimeUrl`": `"$outlookRuntimeUrl`"," -ForegroundColor Yellow
+Write-Host "`"formsConnection-ConnectionRuntimeUrl`": `"$formsRuntimeUrl`"," -ForegroundColor Yellow
+Write-Host "`"teamsConnection-ConnectionRuntimeUrl`": `"$teamsRuntimeUrl`"," -ForegroundColor Yellow
+Write-Host "`"outlookConnection-ConnectionRuntimeUrl`": `"$outlookRuntimeUrl`"," -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "🔑 Connection Keys Information" -ForegroundColor Yellow
@@ -81,9 +81,9 @@ Write-Host "For Logic Apps Standard with managed API connections," -ForegroundCo
 Write-Host "connection keys are handled automatically by the platform." -ForegroundColor White
 Write-Host "You can set the connection key values to:" -ForegroundColor White
 Write-Host ""
-Write-Host "`"microsoftforms-2-connectionKey`": `"@connectionKey('microsoftforms-2')`"," -ForegroundColor Yellow
-Write-Host "`"teams-1-connectionKey`": `"@connectionKey('teams-1')`"," -ForegroundColor Yellow
-Write-Host "`"office365-connectionKey`": `"@connectionKey('office365')`"," -ForegroundColor Yellow
+Write-Host "`"formsConnection-connectionKey`": `"@connectionKey('formsConnection')`"," -ForegroundColor Yellow
+Write-Host "`"teamsConnection-connectionKey`": `"@connectionKey('teamsConnection')`"," -ForegroundColor Yellow
+Write-Host "`"outlookConnection-connectionKey`": `"@connectionKey('outlookConnection')`"," -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "🎯 Critical Workflow Settings" -ForegroundColor Magenta

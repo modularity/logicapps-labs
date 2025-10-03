@@ -12,39 +12,33 @@
             <set-body>@{
                 var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
                 
-                // Sarah Johnson (555-12-3456) - AUTO APPROVAL SCENARIO
-                // Stable employment, good income ratio, standard vehicle
+                // Sarah Johnson (555-12-3456) - LOW RISK AUTO APPROVAL
                 if (requestBody.Contains("555-12-3456")) {
-                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 12, \"Recommendation\": \"Approve\", \"Factors\": [\"Stable Employment (5 years)\", \"Good Debt-to-Income Ratio\", \"Standard Vehicle\"]}";
+                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 12, \"Recommendation\": \"Approve\"}";
                 }
-                // Jennifer Martinez (555-11-2233) - HIGH RISK SCENARIO  
-                // Low employment tenure, high debt ratio, startup employer
+                // Jennifer Martinez (555-11-2233) - HIGH RISK DECLINE
                 else if (requestBody.Contains("555-11-2233")) {
-                    return "{\"RiskLevel\": \"High\", \"RiskScore\": 78, \"Recommendation\": \"Review Required\", \"Factors\": [\"Short Employment Tenure (1.5 years)\", \"High Debt-to-Income Ratio\", \"Startup Employer Risk\", \"Performance Vehicle\"]}";
+                    return "{\"RiskLevel\": \"High\", \"RiskScore\": 85, \"Recommendation\": \"Decline\"}";
                 }
-                // Michael Chen (555-98-7654) - HIGH-END VEHICLE REVIEW
-                // Good salary but high-performance luxury vehicle
+                // Michael Chen (555-98-7654) - MEDIUM RISK REVIEW
                 else if (requestBody.Contains("555-98-7654")) {
-                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 45, \"Recommendation\": \"Review Required\", \"Factors\": [\"High-Performance Vehicle (BMW M5)\", \"Large Loan Amount\", \"Excellent Employment History\"]}";
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 52, \"Recommendation\": \"Review\"}";
                 }
-                // David Wilson (555-44-5566) - LUXURY VEHICLE ALERT
-                // Ultra-luxury vehicle requiring special handling
+                // David Wilson (555-44-5566) - HIGH AMOUNT REVIEW
                 else if (requestBody.Contains("555-44-5566")) {
-                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 55, \"Recommendation\": \"Special Vehicle Review\", \"Factors\": [\"Ultra-Luxury Vehicle (Mercedes S-Class AMG)\", \"Very High Loan Amount\", \"Stable High Income\"]}";
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 48, \"Recommendation\": \"Review\"}";
                 }
-                // Robert Thompson (555-77-8899) - SENIOR APPLICANT
-                // Senior applicant with very stable government employment
+                // Robert Thompson (555-77-8899) - LOW RISK BUT AGE FACTOR
                 else if (requestBody.Contains("555-77-8899")) {
-                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 20, \"Recommendation\": \"Approve with Age Consideration\", \"Factors\": [\"Very Stable Employment (25 years)\", \"Government Position\", \"Conservative Vehicle Choice\", \"Senior Applicant\"]}";
+                    return "{\"RiskLevel\": \"Low\", \"RiskScore\": 18, \"Recommendation\": \"Approve\"}";
                 }
-                // Alex Rodriguez (555-33-4455) - YOUNG PROFESSIONAL
-                // Young age but good tech job and premium vehicle
+                // Alex Rodriguez (555-33-4455) - MEDIUM RISK YOUNG
                 else if (requestBody.Contains("555-33-4455")) {
-                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 38, \"Recommendation\": \"Verify Employment\", \"Factors\": [\"Young Applicant (26 years)\", \"High-Tech Employer\", \"Premium Vehicle (Audi)\", \"Good Salary for Age\"]}";
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 38, \"Recommendation\": \"Review\"}";
                 }
-                // Default for testing
+                // Default
                 else {
-                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 40, \"Recommendation\": \"Standard Review\", \"Factors\": [\"Standard Risk Profile\"]}";
+                    return "{\"RiskLevel\": \"Medium\", \"RiskScore\": 45, \"Recommendation\": \"Review\"}";
                 }
             }</set-body>
         </return-response>

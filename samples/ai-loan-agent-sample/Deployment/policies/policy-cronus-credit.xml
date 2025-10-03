@@ -2,6 +2,26 @@
     <inbound>
         <base />
         <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
+        <set-variable name="ssn" value="@{
+            try {
+                var body = ((string)context.Variables["requestBody"]);
+                var json = Newtonsoft.Json.Linq.JObject.Parse(body);
+                return json["SSN"]?.ToString() ?? "000-00-0000";
+            }
+            catch {
+                return "000-00-0000";
+            }
+        }" />
+        <set-variable name="salary" value="@{
+            try {
+                var body = ((string)context.Variables["requestBody"]);
+                var json = Newtonsoft.Json.Linq.JObject.Parse(body);
+                return json["Salary"]?.Value<int>() ?? 50000;
+            }
+            catch {
+                return 50000;
+            }
+        }" />
     </inbound>
     <backend>
         <return-response>
@@ -10,35 +30,28 @@
                 <value>application/json</value>
             </set-header>
             <set-body>@{
-                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                var ssn = context.Variables.GetValueOrDefault<string>("ssn", "");
                 
-                // Sarah Johnson (555-12-3456) - AUTO APPROVAL SCENARIO
-                if (requestBody.Contains("555-12-3456")) {
+                if (ssn.EndsWith("3456")) {
                     return "{\"CreditScore\": 780, \"CreditRating\": \"Excellent\", \"DebtToIncomeRatio\": 0.20}";
                 }
-                // Jennifer Martinez (555-11-2233) - HIGH RISK SCENARIO  
-                else if (requestBody.Contains("555-11-2233")) {
-                    return "{\"CreditScore\": 580, \"CreditRating\": \"Poor\", \"DebtToIncomeRatio\": 0.78}";
+                else if (ssn.EndsWith("7654")) {
+                    return "{\"CreditScore\": 760, \"CreditRating\": \"Excellent\", \"DebtToIncomeRatio\": 0.35}";
                 }
-                // Michael Chen (555-98-7654) - HIGH-END VEHICLE REVIEW
-                else if (requestBody.Contains("555-98-7654")) {
-                    return "{\"CreditScore\": 760, \"CreditRating\": \"Excellent\", \"DebtToIncomeRatio\": 0.45}";
+                else if (ssn.EndsWith("2233")) {
+                    return "{\"CreditScore\": 640, \"CreditRating\": \"Fair\", \"DebtToIncomeRatio\": 0.55}";
                 }
-                // David Wilson (555-44-5566) - LUXURY VEHICLE ALERT
-                else if (requestBody.Contains("555-44-5566")) {
-                    return "{\"CreditScore\": 800, \"CreditRating\": \"Exceptional\", \"DebtToIncomeRatio\": 0.55}";
+                else if (ssn.EndsWith("5566")) {
+                    return "{\"CreditScore\": 750, \"CreditRating\": \"Excellent\", \"DebtToIncomeRatio\": 0.30}";
                 }
-                // Robert Thompson (555-77-8899) - SENIOR APPLICANT
-                else if (requestBody.Contains("555-77-8899")) {
-                    return "{\"CreditScore\": 720, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.30}";
+                else if (ssn.EndsWith("8899")) {
+                    return "{\"CreditScore\": 720, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.25}";
                 }
-                // Alex Rodriguez (555-33-4455) - YOUNG PROFESSIONAL
-                else if (requestBody.Contains("555-33-4455")) {
-                    return "{\"CreditScore\": 680, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.32}";
+                else if (ssn.EndsWith("4455")) {
+                    return "{\"CreditScore\": 740, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.28}";
                 }
-                // Default for testing
                 else {
-                    return "{\"CreditScore\": 650, \"CreditRating\": \"Fair\", \"DebtToIncomeRatio\": 0.40}";
+                    return "{\"CreditScore\": 700, \"CreditRating\": \"Good\", \"DebtToIncomeRatio\": 0.30}";
                 }
             }</set-body>
         </return-response>

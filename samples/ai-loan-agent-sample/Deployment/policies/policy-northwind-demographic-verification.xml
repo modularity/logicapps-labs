@@ -2,6 +2,32 @@
     <inbound>
         <base />
         <set-variable name="requestBody" value="@(context.Request.Body.As<string>())" />
+        <set-variable name="ssn" value="@{
+            try {
+                var body = ((string)context.Variables["requestBody"]);
+                var json = Newtonsoft.Json.Linq.JObject.Parse(body);
+                return json["SSN"]?.ToString() ?? "000-00-0000";
+            }
+            catch {
+                return "000-00-0000";
+            }
+        }" />
+        <set-variable name="dateOfBirth" value="@{
+            try {
+                var body = ((string)context.Variables["requestBody"]);
+                var json = Newtonsoft.Json.Linq.JObject.Parse(body);
+                var dobString = json["DateOfBirth"]?.ToString() ?? "01/01/1988";
+                var dob = DateTime.Parse(dobString);
+                var age = DateTime.Now.Year - dob.Year;
+                if (DateTime.Now.DayOfYear < dob.DayOfYear) {
+                    age--;
+                }
+                return age;
+            }
+            catch {
+                return 35;
+            }
+        }" />
     </inbound>
     <backend>
         <return-response>
@@ -10,41 +36,29 @@
                 <value>application/json</value>
             </set-header>
             <set-body>@{
-                var requestBody = context.Variables.GetValueOrDefault<string>("requestBody", "");
+                var ssn = context.Variables.GetValueOrDefault<string>("ssn", "");
+                var age = context.Variables.GetValueOrDefault<int>("dateOfBirth", 35);
                 
-                // Sarah Johnson (555-12-3456) - STABLE DEMOGRAPHICS
-                // DOB: 05/15/1988 (Age: 37), stable address history
-                if (requestBody.Contains("555-12-3456")) {
-                    return "{\"IsVerified\": true, \"Age\": 37, \"IdentityConfidence\": 98, \"AddressHistory\": \"Stable\", \"YearsAtCurrentAddress\": 5, \"PreviousAddresses\": 2, \"IdentityScore\": 95}";
+                if (ssn.EndsWith("3456")) {
+                    return "{\"IsVerified\": true, \"Age\": 37, \"IdentityConfidence\": 98}";
                 }
-                // Jennifer Martinez (555-11-2233) - YOUNG WITH LIMITED HISTORY  
-                // DOB: 01/10/1995 (Age: 30), limited address history
-                else if (requestBody.Contains("555-11-2233")) {
-                    return "{\"IsVerified\": true, \"Age\": 30, \"IdentityConfidence\": 82, \"AddressHistory\": \"Limited\", \"YearsAtCurrentAddress\": 1.5, \"PreviousAddresses\": 4, \"IdentityScore\": 78}";
+                else if (ssn.EndsWith("7654")) {
+                    return "{\"IsVerified\": true, \"Age\": 43, \"IdentityConfidence\": 95}";
                 }
-                // Michael Chen (555-98-7654) - ESTABLISHED PROFESSIONAL
-                // DOB: 03/22/1982 (Age: 43), excellent address stability
-                else if (requestBody.Contains("555-98-7654")) {
-                    return "{\"IsVerified\": true, \"Age\": 43, \"IdentityConfidence\": 99, \"AddressHistory\": \"Excellent\", \"YearsAtCurrentAddress\": 8, \"PreviousAddresses\": 3, \"IdentityScore\": 97}";
+                else if (ssn.EndsWith("2233")) {
+                    return "{\"IsVerified\": true, \"Age\": 30, \"IdentityConfidence\": 92}";
                 }
-                // David Wilson (555-44-5566) - LUXURY BUYER PROFILE
-                // DOB: 08/30/1979 (Age: 46), premium address history
-                else if (requestBody.Contains("555-44-5566")) {
-                    return "{\"IsVerified\": true, \"Age\": 46, \"IdentityConfidence\": 99, \"AddressHistory\": \"Premium\", \"YearsAtCurrentAddress\": 12, \"PreviousAddresses\": 2, \"IdentityScore\": 98}";
+                else if (ssn.EndsWith("5566")) {
+                    return "{\"IsVerified\": true, \"Age\": 46, \"IdentityConfidence\": 96}";
                 }
-                // Robert Thompson (555-77-8899) - SENIOR CUSTOMER
-                // DOB: 12/05/1955 (Age: 69), very long address stability
-                else if (requestBody.Contains("555-77-8899")) {
-                    return "{\"IsVerified\": true, \"Age\": 69, \"IdentityConfidence\": 96, \"AddressHistory\": \"Very Stable\", \"YearsAtCurrentAddress\": 25, \"PreviousAddresses\": 1, \"IdentityScore\": 94}";
+                else if (ssn.EndsWith("8899")) {
+                    return "{\"IsVerified\": true, \"Age\": 70, \"IdentityConfidence\": 97}";
                 }
-                // Alex Rodriguez (555-33-4455) - YOUNG PROFESSIONAL
-                // DOB: 06/18/1998 (Age: 27), mobile professional
-                else if (requestBody.Contains("555-33-4455")) {
-                    return "{\"IsVerified\": true, \"Age\": 27, \"IdentityConfidence\": 88, \"AddressHistory\": \"Mobile Professional\", \"YearsAtCurrentAddress\": 3, \"PreviousAddresses\": 5, \"IdentityScore\": 85}";
+                else if (ssn.EndsWith("4455")) {
+                    return "{\"IsVerified\": true, \"Age\": 27, \"IdentityConfidence\": 93}";
                 }
-                // Default for testing
                 else {
-                    return "{\"IsVerified\": true, \"Age\": 35, \"IdentityConfidence\": 90, \"AddressHistory\": \"Standard\", \"YearsAtCurrentAddress\": 3, \"PreviousAddresses\": 2, \"IdentityScore\": 88}";
+                    return "{\"IsVerified\": true, \"Age\": " + age.ToString() + ", \"IdentityConfidence\": 94}";
                 }
             }</set-body>
         </return-response>

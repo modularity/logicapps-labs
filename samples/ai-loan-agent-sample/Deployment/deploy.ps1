@@ -6,35 +6,30 @@
 .DESCRIPTION
     This script deploys all required Azure resources for the AI Loan Agent Logic Apps sample,
     including OpenAI, SQL Database, API Management, Storage, and Logic Apps.
+    
+    The script is idempotent and can be safely re-run multiple times.
+    For troubleshooting help, see TROUBLESHOOTING.md in the same directory.
+    
 .PARAMETER ResourceGroup
     Name of the Azure resource group to create/use
 .PARAMETER Location
-    AzWrite-Info "Checking if policies container exists..."
-$containerExists = az storage container exists --name "policies" --account-name $BLOB_STORAGE_NAME --auth-mode key --query "exists" --output tsv 2>$null
-if ($containerExists -eq "true") {
-    Write-Status "Policies container already exists - skipping creation"
-else {
-    Write-Info "Creating policies container..."
-    az storage container create `
-        --name "policies" `
-        --account-name $BLOB_STORAGE_NAME `
-        --auth-mode key
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create policies container"
-        exit 1
-    }
-    Write-Status "Policies container created successfully"
-} for resource deployment
+    Azure region for resource deployment
 .PARAMETER ProjectName
     Base name for all resources (used as prefix)
 .PARAMETER SqlAdminPassword
     Password for SQL Server admin user (SecureString recommended)
 .PARAMETER SkipLogin
     Skip Azure CLI login (useful if already authenticated)
+.PARAMETER APIMServiceName
+    Name of existing API Management service to use (optional)
 .EXAMPLE
     .\deploy.ps1 -ResourceGroup "my-rg" -Location "eastus" -ProjectName "my-loan-agent"
 .EXAMPLE
     .\deploy.ps1 -ResourceGroup "my-rg" -SqlAdminPassword (ConvertTo-SecureString "MyPassword123!" -AsPlainText -Force)
+.EXAMPLE
+    .\deploy.ps1 -APIMServiceName "existing-apim" -SkipLogin
+.NOTES
+    For troubleshooting common issues, see TROUBLESHOOTING.md
 #>
 
 param(
@@ -82,6 +77,89 @@ function Write-Header($message) {
     Write-Host "`n=== $message ===" -ForegroundColor Magenta
 }
 
+# Function to validate Azure CLI command success with detailed error reporting
+function Test-AzureCommand {
+    param(
+        [string]$CommandDescription,
+        [int]$ExitCode = $LASTEXITCODE,
+        [string]$ErrorOutput = ""
+    )
+    
+    if ($ExitCode -ne 0) {
+        Write-Error "Failed: $CommandDescription"
+        if ($ErrorOutput) {
+            Write-Error "Error details: $ErrorOutput"
+        }
+        Write-Error "Exit code: $ExitCode"
+        return $false
+    }
+    return $true
+}
+
+# Function to check if a resource exists with proper error handling
+function Test-AzureResource {
+    param(
+        [string]$ResourceType,
+        [string]$ResourceName,
+        [string]$ResourceGroup = "",
+        [hashtable]$ExtraParams = @{}
+    )
+    
+    try {
+        $params = @($ResourceName)
+        if ($ResourceGroup) {
+            $params += "--resource-group", $ResourceGroup
+        }
+        foreach ($key in $ExtraParams.Keys) {
+            $params += $key, $ExtraParams[$key]
+        }
+        
+        $result = & az $ResourceType show @params --query "name" --output tsv 2>$null
+        return [bool]$result
+    } catch {
+        return $false
+    }
+}
+
+# Function to retry Azure CLI operations with exponential backoff
+function Invoke-AzureCommandWithRetry {
+    param(
+        [scriptblock]$Command,
+        [string]$Description,
+        [int]$MaxRetries = 3,
+        [int]$DelaySeconds = 30
+    )
+    
+    $attempt = 1
+    $delay = $DelaySeconds
+    
+    do {
+        try {
+            Write-Info "$Description (attempt $attempt of $MaxRetries)"
+            $result = & $Command
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Status "$Description completed successfully"
+                return $result
+            } else {
+                throw "Command failed with exit code $LASTEXITCODE"
+            }
+        } catch {
+            Write-Warning "$Description failed on attempt $attempt - $($_.Exception.Message)"
+            
+            if ($attempt -eq $MaxRetries) {
+                Write-Error "$Description failed after $MaxRetries attempts"
+                throw
+            }
+            
+            Write-Info "Waiting $delay seconds before retry..."
+            Start-Sleep -Seconds $delay
+            $delay = $delay * 2  # Exponential backoff
+            $attempt++
+        }
+    } while ($attempt -le $MaxRetries)
+}
+
 # Function to generate secure password
 function New-SecurePassword {
     # Use .NET RNGCryptoServiceProvider for cryptographically secure random generation
@@ -127,6 +205,44 @@ Write-Info "This script is idempotent and can be safely re-run multiple times."
 Write-Info "Existing resources will be detected and skipped automatically."
 Write-Info "Only missing or failed resources will be created."
 
+# Parameter validation
+Write-Header "Validating Parameters"
+
+if (-not $ResourceGroup -or $ResourceGroup.Trim().Length -eq 0) {
+    Write-Error "ResourceGroup parameter cannot be empty"
+    exit 1
+}
+
+if (-not $Location -or $Location.Trim().Length -eq 0) {
+    Write-Error "Location parameter cannot be empty"
+    exit 1
+}
+
+if (-not $ProjectName -or $ProjectName.Trim().Length -eq 0) {
+    Write-Error "ProjectName parameter cannot be empty"
+    exit 1
+}
+
+# Validate resource group name format
+if ($ResourceGroup -notmatch '^[a-zA-Z0-9._\-\(\)]+$' -or $ResourceGroup.Length -gt 90) {
+    Write-Error "Invalid resource group name. Must be 1-90 characters and contain only alphanumeric, underscore, parentheses, hyphen, period."
+    exit 1
+}
+
+# Validate location format
+$validLocation = az account list-locations --query "[?name=='$Location'].name" --output tsv 2>$null
+if (-not $validLocation) {
+    Write-Warning "Location '$Location' may not be valid. Available locations:"
+    az account list-locations --query "[].{Name:name, DisplayName:displayName}" --output table
+    $confirmation = Read-Host "Continue with location '$Location'? (y/N)"
+    if ($confirmation -ne 'y' -and $confirmation -ne 'Y') {
+        Write-Info "Deployment cancelled by user"
+        exit 0
+    }
+}
+
+Write-Status "Parameters validated successfully"
+
 # Check prerequisites
 Write-Info "Checking prerequisites..."
 
@@ -149,24 +265,108 @@ if ($SqlAdminPassword) {
     Write-Warning "Password will be displayed in the final configuration output for copying to local.settings.json"
 }
 
-# Set resource names
-$timestamp = Get-Date -Format "yyyyMMddHHmmss"
-$LOGIC_APP_NAME = "$ProjectName-logicapp"
-$STORAGE_ACCOUNT_NAME = ($ProjectName + "storage" + $timestamp).Replace("-", "").ToLower()
-$SQL_SERVER_NAME = "$ProjectName-sqlserver"
+# Generate consistent unique identifiers based on subscription and resource group to ensure idempotency
+$subscriptionId = az account show --query id --output tsv 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $subscriptionId) {
+    Write-Error "Not logged into Azure or no active subscription. Please run 'az login' first."
+    Write-Info "Authentication steps:"
+    Write-Info "  1. Run: az login"
+    Write-Info "  2. Run: az account set --subscription 'your-subscription-id'"
+    Write-Info "  3. Re-run this script with -SkipLogin parameter"
+    exit 1
+}
+
+$hashInput = "$subscriptionId-$ResourceGroup"
+$hashBytes = [System.Text.Encoding]::UTF8.GetBytes($hashInput)
+$hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($hashBytes)
+$hashHex = [BitConverter]::ToString($hash).Replace("-", "").ToLower()
+
+# Create truncated identifiers for different resource types
+$uniqueId4 = $hashHex.Substring(0, 4)  # 4 chars for SQL server suffix
+$uniqueId8 = $hashHex.Substring(0, 8)  # 8 chars for longer identifiers
+
+# Set resource names with consistent unique suffixes for true idempotency
+$LOGIC_APP_NAME = "$ProjectName-logicapp-$uniqueId4"
+$STORAGE_ACCOUNT_NAME = ($ProjectName + "storage" + $uniqueId8).Replace("-", "").ToLower()
+$SQL_SERVER_NAME = "$ProjectName-sqlserver-$uniqueId4"
 $SQL_DATABASE_NAME = "$ProjectName-db"
-$OPENAI_ACCOUNT_NAME = "$ProjectName-openai"
-$APIM_SERVICE_NAME = if ($APIMServiceName -and $APIMServiceName.Trim().Length -gt 0) { $APIMServiceName } else { "$ProjectName-apim" }
+$OPENAI_ACCOUNT_NAME = "$ProjectName-openai-$uniqueId4"
+$APIM_SERVICE_NAME = if ($APIMServiceName -and $APIMServiceName.Trim().Length -gt 0) { $APIMServiceName } else { "$ProjectName-apim-$uniqueId4" }
 $APIM_RESOURCE_GROUP = $ResourceGroup
-$BLOB_STORAGE_NAME = ($ProjectName + "blob" + $timestamp).Replace("-", "").ToLower()
+$BLOB_STORAGE_NAME = ($ProjectName + "blob" + $uniqueId8).Replace("-", "").ToLower()
 $SQL_ADMIN_USERNAME = "sqladmin"
 
-# Storage account names must be unique and lowercase
+# Check if resources with the EXACT hash-based names already exist (true idempotency)
+Write-Info "Checking for existing resources with consistent naming pattern..."
+Write-Info "Expected resource names based on hash ${uniqueId4}:"
+Write-Info "  SQL Server: $SQL_SERVER_NAME"
+Write-Info "  OpenAI: $OPENAI_ACCOUNT_NAME"  
+Write-Info "  Logic App: $LOGIC_APP_NAME"
+Write-Info "  Storage: $STORAGE_ACCOUNT_NAME"
+
+# Check for exact resource names (not just pattern matching)
+$sqlServerExists = az sql server show --name $SQL_SERVER_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+$openAIExists = az cognitiveservices account show --name $OPENAI_ACCOUNT_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+$logicAppExists = az webapp show --name $LOGIC_APP_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+$storageExists = az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+
+# Flags to track what resources already exist (exact names only)
+$sqlServerFound = [bool]$sqlServerExists
+$openAIFound = [bool]$openAIExists  
+$storageFound = [bool]$storageExists
+$logicAppFound = [bool]$logicAppExists
+$blobStorageFound = $false  # Will be set during blob storage creation
+$apimFound = $false  # Will check separately due to different logic
+
+# Report existing resources
+if ($sqlServerFound) {
+    Write-Status "✓ Found existing SQL Server: $SQL_SERVER_NAME - will reuse"
+}
+if ($openAIFound) {
+    Write-Status "✓ Found existing OpenAI: $OPENAI_ACCOUNT_NAME - will reuse"  
+}
+if ($storageFound) {
+    Write-Status "✓ Found existing storage account: $STORAGE_ACCOUNT_NAME - will reuse"
+}
+if ($logicAppFound) {
+    Write-Status "✓ Found existing Logic App: $LOGIC_APP_NAME - will reuse"
+}
+
+# Check for existing APIM service (may have different naming logic)
+$existingApim = az apim show --name $APIM_SERVICE_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+$apimFound = [bool]$existingApim
+if ($apimFound) {
+    Write-Status "✓ Found existing APIM service: $APIM_SERVICE_NAME - will reuse"
+}
+
+# Storage account names must be unique and lowercase, max 24 characters
 if ($STORAGE_ACCOUNT_NAME.Length -gt 24) {
     $STORAGE_ACCOUNT_NAME = $STORAGE_ACCOUNT_NAME.Substring(0, 24)
 }
 if ($BLOB_STORAGE_NAME.Length -gt 24) {
     $BLOB_STORAGE_NAME = $BLOB_STORAGE_NAME.Substring(0, 24)
+}
+
+# Check for existing storage accounts with this naming pattern
+$projectNameClean = $ProjectName.Replace("-", "")
+$existingStorage = az storage account list --resource-group $ResourceGroup --query "[?starts_with(name, '$($projectNameClean)storage')].name" --output tsv 2>$null
+if ($existingStorage) {
+    $existingStorageName = ($existingStorage -split "`n")[0].Trim()
+    if ($existingStorageName) {
+        $STORAGE_ACCOUNT_NAME = $existingStorageName
+        $storageFound = $true
+        Write-Status "Found existing storage account: $STORAGE_ACCOUNT_NAME - will reuse"
+    }
+}
+
+$existingBlobStorage = az storage account list --resource-group $ResourceGroup --query "[?starts_with(name, '$($projectNameClean)blob')].name" --output tsv 2>$null
+if ($existingBlobStorage) {
+    $existingBlobStorageName = ($existingBlobStorage -split "`n")[0].Trim()
+    if ($existingBlobStorageName) {
+        $BLOB_STORAGE_NAME = $existingBlobStorageName
+        $blobStorageFound = $true
+        Write-Status "Found existing blob storage account: $BLOB_STORAGE_NAME - will reuse"
+    }
 }
 
 Write-Header "Deployment Configuration"
@@ -178,35 +378,6 @@ Write-Info "Storage Account: $STORAGE_ACCOUNT_NAME"
 Write-Info "SQL Server: $SQL_SERVER_NAME"
 Write-Info "OpenAI Account: $OPENAI_ACCOUNT_NAME"
 Write-Info "API Management: $APIM_SERVICE_NAME"
-
-# Login to Azure
-if (-not $SkipLogin) {
-    Write-Header "Azure Authentication"
-    Write-Info "Logging in to Azure..."
-    az login
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Azure login failed"
-        exit 1
-    }
-    Write-Status "Successfully logged in to Azure"
-}
-
-# List and set subscription
-Write-Info "Available subscriptions:"
-az account list --output table
-
-$subscriptionInput = Read-Host "Enter your subscription ID (or press Enter to use current)"
-if ($subscriptionInput) {
-    az account set --subscription $subscriptionInput
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to set subscription"
-        exit 1
-    }
-    Write-Status "Subscription set to: $subscriptionInput"
-}
-
-# Get current subscription ID for use throughout the script
-$subscriptionId = az account show --query id --output tsv
 Write-Info "Using subscription: $subscriptionId"
 
 # Create resource group
@@ -227,46 +398,105 @@ if ($rgExists -eq "true") {
 
 # Create storage account for Logic Apps
 Write-Header "Creating Storage Account"
-Write-Info "Checking if storage account exists: $STORAGE_ACCOUNT_NAME"
-$storageExists = az storage account check-name --name $STORAGE_ACCOUNT_NAME --query "nameAvailable" --output tsv
-if ($storageExists -eq "false") {
-    Write-Status "Storage account $STORAGE_ACCOUNT_NAME already exists - skipping creation"
+
+if ($storageFound) {
+    Write-Status "Storage account $STORAGE_ACCOUNT_NAME already found - skipping creation"
 } else {
+    Write-Info "Checking if storage account exists: $STORAGE_ACCOUNT_NAME"
+
+# Check name availability first
+$nameCheck = az storage account check-name --name $STORAGE_ACCOUNT_NAME --output json 2>$null
+if ($nameCheck) {
+    $nameCheckObj = $nameCheck | ConvertFrom-Json
+    if (-not $nameCheckObj.nameAvailable) {
+        if ($nameCheckObj.reason -eq "AlreadyExists") {
+            Write-Info "Storage account name already taken. Checking if it's in our resource group..."
+            $existingStorage = az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+            if ($existingStorage) {
+                Write-Status "Storage account $STORAGE_ACCOUNT_NAME already exists in our resource group - skipping creation"
+            } else {
+                Write-Warning "Storage account name '$STORAGE_ACCOUNT_NAME' exists in different resource group/subscription"
+                $newTimestamp = Get-Date -Format "yyyyMMddHHmm"
+                $STORAGE_ACCOUNT_NAME = ($ProjectName + "storage" + $newTimestamp).Replace("-", "").ToLower()
+                if ($STORAGE_ACCOUNT_NAME.Length -gt 24) {
+                    $STORAGE_ACCOUNT_NAME = $STORAGE_ACCOUNT_NAME.Substring(0, 24)
+                }
+                Write-Info "Generated new storage account name: $STORAGE_ACCOUNT_NAME"
+            }
+        } else {
+            Write-Error "Storage account name '$STORAGE_ACCOUNT_NAME' is invalid: $($nameCheckObj.message)"
+            exit 1
+        }
+    }
+}
+
+# Create storage account if it doesn't exist
+if (-not (az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null)) {
     Write-Info "Creating storage account: $STORAGE_ACCOUNT_NAME"
-    az storage account create `
+    $createResult = az storage account create `
         --name $STORAGE_ACCOUNT_NAME `
         --resource-group $ResourceGroup `
         --location $Location `
         --sku Standard_LRS `
-        --kind StorageV2
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create storage account"
+        --kind StorageV2 2>&1
+    
+    if (-not (Test-AzureCommand "Create storage account $STORAGE_ACCOUNT_NAME" $LASTEXITCODE $createResult)) {
         exit 1
     }
-    Write-Status "Storage account created successfully"
+    Write-Status "Storage account created successfully: $STORAGE_ACCOUNT_NAME"
+} else {
+    Write-Status "Storage account $STORAGE_ACCOUNT_NAME already exists - skipping creation"
 }
+} # End of storage creation section
 
 # Create SQL Server and Database
 Write-Header "Creating SQL Database"
-Write-Info "Checking if SQL Server exists: $SQL_SERVER_NAME"
-$sqlServerExists = az sql server show --name $SQL_SERVER_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
-if ($sqlServerExists) {
-    Write-Status "SQL Server $SQL_SERVER_NAME already exists - skipping creation"
+
+# SQL Server Creation Logic
+if ($sqlServerFound) {
+    Write-Status "SQL Server $SQL_SERVER_NAME already found - will configure authentication"
 } else {
-    Write-Info "Creating SQL Server: $SQL_SERVER_NAME"
-    az sql server create `
-        --name $SQL_SERVER_NAME `
-        --resource-group $ResourceGroup `
-        --location $Location `
-        --admin-user $SQL_ADMIN_USERNAME `
-        --admin-password $SqlAdminPasswordPlainText
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create SQL Server"
-        exit 1
+    Write-Info "Checking if SQL Server exists: $SQL_SERVER_NAME"
+
+    # Check if it exists in our resource group first
+    $sqlServerExists = az sql server show --name $SQL_SERVER_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+    if ($sqlServerExists) {
+        Write-Status "SQL Server $SQL_SERVER_NAME already exists in resource group - skipping creation"
+    } else {
+        # Only check global availability if we don't have an existing server in our resource group
+        Write-Info "Checking SQL Server name availability globally..."
+        $nameCheckResult = az sql server list --query "[?name=='$SQL_SERVER_NAME'].name" --output tsv 2>$null
+        if ($nameCheckResult) {
+            Write-Warning "SQL Server name '$SQL_SERVER_NAME' is already taken globally. Using deterministic collision resolution..."
+            # Use longer hash for collision resolution - still deterministic
+            $additionalId = $hashHex.Substring(8, 5)  # Next 5 chars from same hash
+            $SQL_SERVER_NAME = "$ProjectName-sqlserver-$additionalId"
+            Write-Info "New SQL Server name: $SQL_SERVER_NAME"
+        }
+
+        Write-Info "Creating SQL Server: $SQL_SERVER_NAME"
+        Write-Info "This may take a few minutes..."
+        
+        $createResult = az sql server create `
+            --name $SQL_SERVER_NAME `
+            --resource-group $ResourceGroup `
+            --location $Location `
+            --admin-user $SQL_ADMIN_USERNAME `
+            --admin-password "$SqlAdminPasswordPlainText" 2>&1
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to create SQL Server '$SQL_SERVER_NAME'"
+            Write-Error "Error details: $createResult"
+            if ($createResult -match "NameAlreadyExists" -or $createResult -match "already exists") {
+                Write-Error "The SQL Server name is still conflicting. Try running the script again to generate a new unique name."
+            }
+            exit 1
+        }
+        Write-Status "SQL Server created successfully: $SQL_SERVER_NAME"
     }
-    Write-Status "SQL Server created successfully"
 }
 
+# SQL Server Configuration (runs for both new and existing servers)
 Write-Info "Configuring SQL Server firewall..."
 az sql server firewall-rule create `
     --resource-group $ResourceGroup `
@@ -275,11 +505,11 @@ az sql server firewall-rule create `
     --start-ip-address 0.0.0.0 `
     --end-ip-address 0.0.0.0
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to configure SQL Server firewall"
-    exit 1
+    Write-Warning "SQL Server firewall rule may already exist - continuing"
 }
 Write-Status "SQL Server firewall configured"
 
+# SQL Database Creation
 Write-Info "Checking if SQL Database exists: $SQL_DATABASE_NAME"
 $sqlDbExists = az sql db show --name $SQL_DATABASE_NAME --server $SQL_SERVER_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
 if ($sqlDbExists) {
@@ -298,24 +528,50 @@ if ($sqlDbExists) {
     Write-Status "SQL Database created successfully"
 }
 
-# Configure SQL Server Microsoft Entra ID Authentication
+# Generate SQL connection string for local development
+$sqlConnectionString = "Server=tcp:$SQL_SERVER_NAME.database.windows.net,1433;Initial Catalog=$SQL_DATABASE_NAME;Authentication=Active Directory Managed Identity;Encrypt=True;"
+
+# Configure SQL Server Microsoft Entra ID Authentication (runs for both new and existing servers)
 Write-Header "Configuring SQL Database Authentication"
 Write-Info "Setting up Microsoft Entra ID authentication for SQL Server..."
 
-# Get current user information for setting as SQL admin
+# Get current user information for database configuration
+Write-Info "Getting current user information for database configuration..."
 $currentUser = az account show --query user.name --output tsv
 $currentUserId = az ad signed-in-user show --query id --output tsv
 
-Write-Info "Setting Microsoft Entra ID admin for SQL Server: $currentUser"
-az sql server ad-admin create `
-    --server $SQL_SERVER_NAME `
-    --resource-group $ResourceGroup `
-    --display-name $currentUser `
-    --object-id $currentUserId
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to set Microsoft Entra ID admin - you may need to set this manually"
+# Check if Microsoft Entra ID admin is already configured
+Write-Info "Checking existing Microsoft Entra ID admin configuration..."
+$existingAdmin = az sql server ad-admin list --resource-group $ResourceGroup --server $SQL_SERVER_NAME --query "[0].login" --output tsv 2>$null
+if ($existingAdmin) {
+    Write-Status "Microsoft Entra ID admin already configured: $existingAdmin"
+    if ($existingAdmin -ne $currentUser) {
+        Write-Warning "Current Entra ID admin ($existingAdmin) differs from current user ($currentUser)"
+        Write-Info "Updating Entra ID admin to current user..."
+        az sql server ad-admin create `
+            --server $SQL_SERVER_NAME `
+            --resource-group $ResourceGroup `
+            --display-name $currentUser `
+            --object-id $currentUserId
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to update Microsoft Entra ID admin - current admin remains: $existingAdmin"
+        } else {
+            Write-Status "Microsoft Entra ID admin updated successfully to: $currentUser"
+        }
+    }
 } else {
-    Write-Status "Microsoft Entra ID authentication configured successfully"
+    Write-Info "Setting Microsoft Entra ID admin for SQL Server: $currentUser"
+    az sql server ad-admin create `
+        --server $SQL_SERVER_NAME `
+        --resource-group $ResourceGroup `
+        --display-name $currentUser `
+        --object-id $currentUserId
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to set Microsoft Entra ID admin - you may need to set this manually"
+        Write-Warning "Run this command manually: az sql server ad-admin create --server $SQL_SERVER_NAME --resource-group $ResourceGroup --display-name '$currentUser' --object-id $currentUserId"
+    } else {
+        Write-Status "Microsoft Entra ID authentication configured successfully"
+    }
 }
 
 # Add current user's IP to firewall rules for database access
@@ -329,7 +585,7 @@ if ($currentIP) {
         --start-ip-address $currentIP `
         --end-ip-address $currentIP
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to add IP address to firewall - you may need to add it manually: $currentIP"
+        Write-Warning "Failed to add IP address to firewall - rule may already exist: $currentIP"
     } else {
         Write-Status "IP address $currentIP added to SQL Server firewall"
     }
@@ -337,26 +593,55 @@ if ($currentIP) {
     Write-Warning "Could not detect your public IP address - you may need to add it manually to SQL Server firewall"
 }
 
+Write-Status "SQL Server configuration completed successfully"
+
 # Create Azure OpenAI
 Write-Header "Creating Azure OpenAI Service"
+
+if ($openAIFound) {
+    Write-Status "OpenAI account $OPENAI_ACCOUNT_NAME already found - skipping creation"
+} else {
+
+# First, check if the name is available globally
+Write-Info "Checking OpenAI account name availability globally..."
+$existingOpenAI = az cognitiveservices account list --query "[?name=='$OPENAI_ACCOUNT_NAME'].name" --output tsv 2>$null
+if ($existingOpenAI) {
+    Write-Warning "OpenAI account name '$OPENAI_ACCOUNT_NAME' already exists globally. Using deterministic collision resolution..."
+    # Use different part of hash for collision resolution - still deterministic
+    $newUniqueId = $hashHex.Substring(8, 5)  # Next 5 chars from same hash
+    $OPENAI_ACCOUNT_NAME = "$ProjectName-openai-$newUniqueId"
+    Write-Info "New OpenAI account name: $OPENAI_ACCOUNT_NAME"
+}
+
 Write-Info "Checking if OpenAI account exists: $OPENAI_ACCOUNT_NAME"
+
+# Check if OpenAI service exists in our resource group
 $openaiExists = az cognitiveservices account show --name $OPENAI_ACCOUNT_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
 if ($openaiExists) {
     Write-Status "OpenAI account $OPENAI_ACCOUNT_NAME already exists - skipping creation"
 } else {
     Write-Info "Creating OpenAI account: $OPENAI_ACCOUNT_NAME"
-    az cognitiveservices account create `
+    Write-Info "This may take a few minutes..."
+    
+    $createResult = az cognitiveservices account create `
         --name $OPENAI_ACCOUNT_NAME `
         --resource-group $ResourceGroup `
         --location $Location `
         --kind OpenAI `
         --sku S0 `
-        --yes
+        --yes 2>&1
+    
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create OpenAI account"
+        Write-Error "Failed to create OpenAI account '$OPENAI_ACCOUNT_NAME'"
+        Write-Error "Error details: $createResult"
+        Write-Warning "You may need to:"
+        Write-Warning "  1. Check if OpenAI is available in your region: $Location"
+        Write-Warning "  2. Ensure you have sufficient quota for OpenAI resources"
+        Write-Warning "  3. Try a different region with OpenAI availability"
+        Write-Warning "  4. Try running the script again to generate a new unique name"
         exit 1
     }
-    Write-Status "OpenAI account created successfully"
+    Write-Status "OpenAI account created successfully: $OPENAI_ACCOUNT_NAME"
 }
 
 Write-Info "Checking if GPT-4.1 model deployment exists..."
@@ -387,11 +672,16 @@ if ($modelExists) {
     } else {
         Write-Status "GPT-4.1 model deployed successfully"
     }
-}
+} # End of OpenAI model deployment section
+} # End of OpenAI creation section
 
 # Create API Management
 Write-Header "Creating API Management Service"
-Write-Info "Checking for existing API Management services in resource group: $ResourceGroup"
+
+if ($apimFound) {
+    Write-Status "API Management service $APIM_SERVICE_NAME already found - skipping creation"
+} else {
+    Write-Info "Checking for existing API Management services in resource group: $ResourceGroup"
 $existingApims = az apim list --resource-group $ResourceGroup --query "[].name" --output tsv 2>$null
 if ($existingApims) {
     # If there are one or more APIM instances in the RG, pick the first one and use it
@@ -403,11 +693,52 @@ if ($existingApims) {
     }
 } else {
     Write-Info "No API Management service found in resource group: $ResourceGroup"
-    Write-Info "Attempting to create API Management: $APIM_SERVICE_NAME"
-    Write-Warning "API Management deployment can take 30-45 minutes..."
+    
+    # Check if the APIM name is available globally before attempting creation
+    Write-Info "Checking APIM service name availability globally..."
+    $existingAPIMs = az apim list --query "[?name=='$APIM_SERVICE_NAME'].{name:name, resourceGroup:resourceGroup}" --output json 2>$null
+    $existingAPIMList = @()
+    $shouldCreateAPIM = $true
+    
+    if ($existingAPIMs -and $existingAPIMs -ne "[]") {
+        try {
+            $existingAPIMList = $existingAPIMs | ConvertFrom-Json
+            if ($existingAPIMList -and $existingAPIMList.Count -gt 0) {
+                $existingAPIM = $existingAPIMList[0]
+                Write-Warning "APIM name '$APIM_SERVICE_NAME' already exists in resource group '$($existingAPIM.resourceGroup)'."
+                
+                # Check if we have access to this APIM service
+                $accessibleAPIM = az apim show --name $existingAPIM.name --resource-group $existingAPIM.resourceGroup --query "name" --output tsv 2>$null
+                if ($accessibleAPIM) {
+                    Write-Status "Using existing accessible APIM: $($existingAPIM.name) in resource group: $($existingAPIM.resourceGroup)"
+                    $APIM_SERVICE_NAME = $existingAPIM.name
+                    $APIM_RESOURCE_GROUP = $existingAPIM.resourceGroup
+                    $shouldCreateAPIM = $false
+                } else {
+                    Write-Warning "Cannot access existing APIM service. Generating new unique name..."
+                    $newUniqueId = Get-Random -Minimum 10000 -Maximum 99999
+                    $APIM_SERVICE_NAME = "$ProjectName-apim-$newUniqueId"
+                    Write-Info "New APIM service name: $APIM_SERVICE_NAME"
+                }
+            }
+        } catch {
+            Write-Info "Could not parse existing APIM list. Proceeding with creation..."
+            Write-Info "Attempting to create API Management: $APIM_SERVICE_NAME"
+            Write-Warning "API Management deployment can take 30-45 minutes..."
+        }
+    } else {
+        Write-Info "APIM name '$APIM_SERVICE_NAME' is available globally"
+        Write-Info "Attempting to create API Management: $APIM_SERVICE_NAME"
+        Write-Warning "API Management deployment can take 30-45 minutes..."
+    }
 
-    # Try to create APIM; capture stdout/stderr so we can detect a 'ServiceAlreadyExists' error
-    $apimCreateResult = az apim create `
+    # Only attempt creation if we didn't find an existing APIM to reuse
+    if ($shouldCreateAPIM) {
+        Write-Info "Attempting to create API Management: $APIM_SERVICE_NAME"
+        Write-Warning "API Management deployment can take 30-45 minutes..."
+        
+        # Try to create APIM; capture stdout/stderr so we can detect a 'ServiceAlreadyExists' error
+        $apimCreateResult = az apim create `
         --name $APIM_SERVICE_NAME `
         --resource-group $ResourceGroup `
         --location $Location `
@@ -415,37 +746,49 @@ if ($existingApims) {
         --publisher-name "AI Loan Agent" `
         --sku-name Developer 2>&1
 
-    if ($LASTEXITCODE -ne 0) {
-        # If the name is taken (ServiceAlreadyExists), try to locate the existing APIM by name across the subscription
-        if ($apimCreateResult -match "ServiceAlreadyExists" -or $apimCreateResult -match "already exists") {
-            Write-Warning "APIM name '$APIM_SERVICE_NAME' appears to be already in use. Attempting to locate existing APIM with that name in this subscription..."
-
-            $apimMatchJson = az apim list --query "[?name=='$APIM_SERVICE_NAME'] | [0] | {name:name, resourceGroup:resourceGroup}" --output json 2>$null
-            if ($apimMatchJson) {
-                try {
-                    $apimMatch = $apimMatchJson | ConvertFrom-Json
-                } catch {
-                    $apimMatch = $null
+        if ($LASTEXITCODE -ne 0) {
+            if ($apimCreateResult -match "ServiceAlreadyExists" -or $apimCreateResult -match "already exists") {
+                Write-Warning "APIM service name '$APIM_SERVICE_NAME' already exists globally but not accessible. Generating unique name..."
+                $newUniqueId = Get-Random -Minimum 10000 -Maximum 99999
+                $APIM_SERVICE_NAME = "$ProjectName-apim-$newUniqueId"
+                Write-Info "Attempting to create APIM with new unique name: $APIM_SERVICE_NAME"
+                
+                # Retry with new unique name
+                $apimCreateResult = az apim create `
+                    --name $APIM_SERVICE_NAME `
+                    --resource-group $ResourceGroup `
+                    --location $Location `
+                    --publisher-email "admin@example.com" `
+                    --publisher-name "AI Loan Agent" `
+                    --sku-name Developer 2>&1
+                
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Error "Failed to create API Management service even with unique name: $apimCreateResult"
+                    Write-Warning "You may need to:"
+                    Write-Warning "  1. Check if you have sufficient permissions to create APIM services"
+                    Write-Warning "  2. Verify the location supports APIM services"
+                    Write-Warning "  3. Create APIM manually in the Azure Portal"
+                    Write-Warning "  4. Use an existing APIM service with -APIMServiceName parameter"
+                    exit 1
+                } else {
+                    Write-Status "API Management service created successfully with unique name: $APIM_SERVICE_NAME"
+                    $APIM_RESOURCE_GROUP = $ResourceGroup
                 }
-
-                if ($apimMatch -and $apimMatch.name) {
-                    $APIM_SERVICE_NAME = $apimMatch.name
-                    $APIM_RESOURCE_GROUP = $apimMatch.resourceGroup
-                    Write-Status "Located existing APIM: $APIM_SERVICE_NAME in resource group: $APIM_RESOURCE_GROUP - using it"
-                }
-            }
-
-            if (-not $APIM_SERVICE_NAME -or $APIM_SERVICE_NAME -eq "") {
-                Write-Error "APIM creation failed and could not locate an existing service by that name in the subscription. Provide a different APIM name with -APIMServiceName or create APIM manually."
+            } else {
+                Write-Error "Failed to create API Management service: $apimCreateResult"
+                Write-Warning "You may need to:"
+                Write-Warning "  1. Try a different APIM service name with -APIMServiceName parameter"
+                Write-Warning "  2. Check if you have sufficient permissions to create APIM services"
+                Write-Warning "  3. Verify the location supports APIM services"
+                Write-Warning "  4. Create APIM manually in the Azure Portal"
                 exit 1
             }
         } else {
-            Write-Error "Failed to create API Management service: $apimCreateResult"
-            exit 1
+            Write-Status "API Management service created successfully"
+            $APIM_RESOURCE_GROUP = $ResourceGroup
         }
     } else {
-        Write-Status "API Management service created successfully"
-        # Leave $APIM_RESOURCE_GROUP as the target ResourceGroup
+        Write-Status "Using existing APIM service: $APIM_SERVICE_NAME"
     }
 }
 
@@ -502,26 +845,63 @@ if (Test-Path $apimScriptPath) {
 }
 
 Write-Status "APIM configuration completed"
+} # End of APIM creation section
 
 # Create blob storage
 Write-Header "Creating Blob Storage"
-Write-Info "Checking if blob storage account exists: $BLOB_STORAGE_NAME"
-$blobStorageExists = az storage account check-name --name $BLOB_STORAGE_NAME --query "nameAvailable" --output tsv
-if ($blobStorageExists -eq "false") {
-    Write-Status "Blob storage account $BLOB_STORAGE_NAME already exists - skipping creation"
+
+if ($blobStorageFound) {
+    Write-Status "Blob storage account $BLOB_STORAGE_NAME already found - skipping creation"
 } else {
+    # Ensure blob storage name is valid and unique BEFORE checking
+    if ($BLOB_STORAGE_NAME.Length -gt 24) {
+        $BLOB_STORAGE_NAME = $BLOB_STORAGE_NAME.Substring(0, 24)
+        Write-Info "Blob storage name truncated to: $BLOB_STORAGE_NAME"
+    }
+
+Write-Info "Checking if blob storage account exists: $BLOB_STORAGE_NAME"
+
+$blobNameCheck = az storage account check-name --name $BLOB_STORAGE_NAME --output json 2>$null
+if ($blobNameCheck) {
+    $blobNameCheckObj = $blobNameCheck | ConvertFrom-Json
+    if (-not $blobNameCheckObj.nameAvailable) {
+        if ($blobNameCheckObj.reason -eq "AlreadyExists") {
+            # Check if it exists in our resource group
+            $existingBlobStorage = az storage account show --name $BLOB_STORAGE_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null
+            if ($existingBlobStorage) {
+                Write-Status "Blob storage account $BLOB_STORAGE_NAME already exists in our resource group - skipping creation"
+            } else {
+                Write-Warning "Blob storage name '$BLOB_STORAGE_NAME' exists elsewhere. Generating new name..."
+                $newBlobTimestamp = Get-Date -Format "yyyyMMddHHmm"
+                $BLOB_STORAGE_NAME = ($ProjectName + "blob" + $newBlobTimestamp).Replace("-", "").ToLower()
+                if ($BLOB_STORAGE_NAME.Length -gt 24) {
+                    $BLOB_STORAGE_NAME = $BLOB_STORAGE_NAME.Substring(0, 24)
+                }
+                Write-Info "New blob storage name: $BLOB_STORAGE_NAME"
+            }
+        } else {
+            Write-Error "Blob storage name '$BLOB_STORAGE_NAME' is invalid: $($blobNameCheckObj.message)"
+            exit 1
+        }
+    }
+}
+
+# Create blob storage if needed
+if (-not (az storage account show --name $BLOB_STORAGE_NAME --resource-group $ResourceGroup --query "name" --output tsv 2>$null)) {
     Write-Info "Creating blob storage account: $BLOB_STORAGE_NAME"
-    az storage account create `
+    $blobCreateResult = az storage account create `
         --name $BLOB_STORAGE_NAME `
         --resource-group $ResourceGroup `
         --location $Location `
         --sku Standard_LRS `
-        --kind StorageV2
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to create blob storage account"
+        --kind StorageV2 2>&1
+    
+    if (-not (Test-AzureCommand "Create blob storage account $BLOB_STORAGE_NAME" $LASTEXITCODE $blobCreateResult)) {
         exit 1
     }
-    Write-Status "Blob storage account created successfully"
+    Write-Status "Blob storage account created successfully: $BLOB_STORAGE_NAME"
+} else {
+    Write-Status "Blob storage account $BLOB_STORAGE_NAME already exists - skipping creation"
 }
 
 Write-Info "Checking if policies container exists..."
@@ -615,9 +995,34 @@ $policyUrl = az storage blob generate-sas `
     --full-uri `
     --account-key $(az storage account keys list --resource-group $ResourceGroup --account-name $BLOB_STORAGE_NAME --query "[0].value" --output tsv) `
     --output tsv
+} # End of blob storage creation section
+
+# Generate SAS URL for policy document (works for both new and existing storage)
+Write-Info "Generating policy document SAS URL..."
+$expiryDate = (Get-Date).AddYears(1).ToString("yyyy-MM-ddTHH:mm:ssZ")
+$policyUrl = az storage blob generate-sas `
+    --account-name $BLOB_STORAGE_NAME `
+    --container-name policies `
+    --name loan-policy.txt `
+    --permissions r `
+    --expiry $expiryDate `
+    --full-uri `
+    --account-key $(az storage account keys list --resource-group $ResourceGroup --account-name $BLOB_STORAGE_NAME --query "[0].value" --output tsv) `
+    --output tsv
+
+if ($policyUrl) {
+    Write-Status "Policy document SAS URL generated successfully"
+} else {
+    Write-Warning "Failed to generate policy document SAS URL - using placeholder"
+    $policyUrl = "https://$BLOB_STORAGE_NAME.blob.core.windows.net/policies/loan-policy.txt"
+}
 
 # Create Logic Apps
 Write-Header "Creating Logic Apps Standard"
+
+if ($logicAppFound) {
+    Write-Status "Logic App $LOGIC_APP_NAME already found - skipping creation"
+} else {
 Write-Info "Checking if App Service Plan exists: $LOGIC_APP_NAME-plan"
 $planExists = az appservice plan show --name "$LOGIC_APP_NAME-plan" --resource-group $ResourceGroup --query "name" --output tsv 2>$null
 if ($planExists) {
@@ -676,70 +1081,159 @@ $principalId = az webapp identity show `
 
 Write-Info "Logic App managed identity principal ID: $principalId"
 
-# Assign RBAC roles for Azure resources
-Write-Info "Assigning RBAC roles for Azure resource access..."
+# Note: RBAC role assignments are deferred until after workflow deployment
+# This prevents premature creation of managed connection resource groups
+Write-Info "Managed identity configured successfully - ready for connection creation during workflow deployment"
+Write-Warning "IMPORTANT: RBAC roles will be assigned automatically when connections are created"
+Write-Warning "The VS Code Logic Apps extension will handle role assignments during workflow deployment"
 
-# Grant access to API Management (Reader role for accessing APIs)
-Write-Info "Assigning API Management Service Reader role..."
-az role assignment create `
-    --assignee $principalId `
-    --role "API Management Service Reader Role" `
-    --scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME"
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to assign API Management Reader role - may already exist"
-} else {
-    Write-Status "API Management Reader role assigned successfully"
+Write-Status "Logic App managed identity configuration completed"
+} # End of Logic Apps creation section
+
+# Create Microsoft 365 API Connections
+Write-Header "Creating Microsoft 365 API Connections"
+Write-Info "Creating API connections required by Logic App workflows..."
+Write-Warning "These connections must exist before deploying workflows with VS Code"
+
+# Function to create API connection using temporary JSON file approach
+function New-ApiConnection {
+    param(
+        [string]$ConnectionName,
+        [string]$DisplayName,
+        [string]$ApiName,
+        [string]$SubscriptionId,
+        [string]$ResourceGroup,
+        [string]$Location
+    )
+    
+    Write-Info "Creating $DisplayName..."
+    
+    # Create a temporary JSON file to avoid PowerShell command line parsing issues
+    $tempJsonFile = [System.IO.Path]::GetTempFileName() + ".json"
+    
+    try {
+        # Create properly formatted JSON for API connection (OAuth authentication for Microsoft 365 connectors)
+        $connectionDefinition = @{
+            displayName = $DisplayName
+            api = @{
+                id = "/subscriptions/$SubscriptionId/providers/Microsoft.Web/locations/$Location/managedApis/$ApiName"
+            }
+            parameterValues = @{}
+        }
+        
+        # Convert to JSON and save to temp file
+        $jsonContent = $connectionDefinition | ConvertTo-Json -Depth 4
+        $jsonContent | Out-File -FilePath $tempJsonFile -Encoding UTF8
+        
+        # Use az resource create with JSON file for reliable API connection creation
+        $createResult = az resource create `
+            --resource-group $ResourceGroup `
+            --resource-type "Microsoft.Web/connections" `
+            --name $ConnectionName `
+            --location $Location `
+            --properties "@$tempJsonFile" 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Status "✅ $DisplayName created successfully"
+            return $true
+        } elseif ($createResult -match "already exists" -or $createResult -match "ResourceAlreadyExists") {
+            Write-Status "✅ $DisplayName already exists"
+            return $true
+        } else {
+            Write-Warning "⚠ $DisplayName creation failed: $createResult"
+            return $false
+        }
+    }
+    finally {
+        # Clean up temporary file
+        Remove-Item -Path $tempJsonFile -ErrorAction SilentlyContinue
+    }
 }
 
-# Grant access to Storage (for policy documents)
-Write-Info "Assigning Storage Blob Data Reader role..."
-az role assignment create `
-    --assignee $principalId `
-    --role "Storage Blob Data Reader" `
-    --scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Storage/storageAccounts/$BLOB_STORAGE_NAME"
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to assign Storage Blob Data Reader role - may already exist"
-} else {
-    Write-Status "Storage Blob Data Reader role assigned successfully"
+# Create the three Microsoft 365 API connections using the working method
+$connectionsCreated = 0
+
+# Microsoft Forms Connection
+if (New-ApiConnection -ConnectionName "formsConnection" -DisplayName "Microsoft Forms Connection" -ApiName "microsoftforms" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location) {
+    $connectionsCreated++
 }
 
-# Grant access to OpenAI (Cognitive Services User role)
-Write-Info "Assigning Cognitive Services User role for OpenAI access..."
-az role assignment create `
-    --assignee $principalId `
-    --role "Cognitive Services User" `
-    --scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.CognitiveServices/accounts/$OPENAI_ACCOUNT_NAME"
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to assign Cognitive Services User role - may already exist"
-} else {
-    Write-Status "Cognitive Services User role assigned successfully"
+# Microsoft Teams Connection  
+if (New-ApiConnection -ConnectionName "teamsConnection" -DisplayName "Microsoft Teams Connection" -ApiName "teams" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location) {
+    $connectionsCreated++
 }
 
-# Grant access to SQL Database (SQL DB Contributor role)
-Write-Info "Assigning SQL DB Contributor role for database access..."
-az role assignment create `
-    --assignee $principalId `
-    --role "SQL DB Contributor" `
-    --scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Sql/servers/$SQL_SERVER_NAME"
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to assign SQL DB Contributor role - may already exist"
-} else {
-    Write-Status "SQL DB Contributor role assigned successfully"
+# Office 365 Outlook Connection
+if (New-ApiConnection -ConnectionName "outlookConnection" -DisplayName "Office 365 Outlook Connection" -ApiName "office365" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location) {
+    $connectionsCreated++
 }
 
-# Also grant SQL Server Contributor for more comprehensive access
-Write-Info "Assigning SQL Server Contributor role for server access..."
-az role assignment create `
-    --assignee $principalId `
-    --role "SQL Server Contributor" `
-    --scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Sql/servers/$SQL_SERVER_NAME"
-if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Failed to assign SQL Server Contributor role - may already exist"
+# Verify connections were created
+Write-Info "Verifying API connections..."
+$connections = az resource list --resource-group $ResourceGroup --resource-type "Microsoft.Web/connections" --query "[].name" --output tsv 2>$null
+if ($connections) {
+    Write-Status "API connections found: $($connections -join ', ')"
+    Write-Status "$connectionsCreated of 3 connections created successfully"
+    
+    # Configure access policies for Logic App managed identity
+    Write-Info "Configuring access policies for Logic App managed identity..."
+    $logicAppPrincipalId = az webapp identity show --name $LOGIC_APP_NAME --resource-group $ResourceGroup --query principalId --output tsv
+    
+    if ($logicAppPrincipalId) {
+        Write-Info "Logic App Principal ID: $logicAppPrincipalId"
+        $tenantId = az account show --query tenantId --output tsv
+        
+        # Grant access to each connection
+        foreach ($connectionName in @("formsConnection", "teamsConnection", "outlookConnection")) {
+            Write-Info "Granting access to $connectionName..."
+            
+            # Create temporary JSON file for access policy
+            $accessPolicyFile = [System.IO.Path]::GetTempFileName() + ".json"
+            try {
+                $accessPolicy = @{
+                    tenantId = $tenantId
+                    objectId = $logicAppPrincipalId
+                    principalName = $LOGIC_APP_NAME
+                }
+                
+                $accessPolicy | ConvertTo-Json | Out-File -FilePath $accessPolicyFile -Encoding UTF8
+                
+                $accessResult = az rest --method PUT `
+                    --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/$connectionName/accessPolicies/$logicAppPrincipalId" `
+                    --query-parameters "api-version=2018-07-01-preview" `
+                    --body "@$accessPolicyFile" 2>&1
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Status "✅ Access policy created for $connectionName"
+                } else {
+                    Write-Warning "⚠ Failed to create access policy for $connectionName"
+                    Write-Info "This may be expected - access policies are automatically created during workflow deployment"
+                }
+            }
+            finally {
+                Remove-Item -Path $accessPolicyFile -ErrorAction SilentlyContinue
+            }
+        }
+    } else {
+        Write-Warning "Could not retrieve Logic App managed identity principal ID"
+    }
+    
+    Write-Warning ""
+    Write-Warning "🔑 IMPORTANT: These connections need to be authorized before use:"
+    Write-Warning "  Method 1 (Recommended): Azure Portal -> Resource Groups -> $ResourceGroup -> [ConnectionName] -> Edit API Connection -> Authorize -> Save"
+    Write-Warning "  Method 2 (Alternative): Azure Portal -> Logic Apps -> $LOGIC_APP_NAME -> Workflows -> Designer"
+    Write-Warning "             -> Add action -> Select connection -> Authorize"
+    Write-Warning ""
+    Write-Status "All connections show 'Unauthenticated' status until authorized - this is normal"
 } else {
-    Write-Status "SQL Server Contributor role assigned successfully"
+    Write-Warning "No API connections found - creation may have failed"
+    Write-Info "Manual creation instructions:"
+    Write-Info "  1. Azure Portal -> Resource Groups -> $ResourceGroup -> Add -> Search 'API Connection'"
+    Write-Info "  2. Create connections: formsConnection, teamsConnection, outlookConnection"
+    Write-Info "  3. Use connector types: Microsoft Forms, Microsoft Teams, Office 365 Outlook"
 }
 
-Write-Status "RBAC roles assigned successfully"
+Write-Status "Microsoft 365 API connections setup completed"
 
 # SQL Connection Setup Required
 Write-Header "SQL Managed API Connection Setup Required"
@@ -751,8 +1245,8 @@ Write-Warning "  Option 1 (Recommended): Use Azure Portal Logic App Designer"
 Write-Warning "  Option 2: Use VS Code Azure Logic Apps extension"
 Write-Warning ""
 Write-Warning "Quick steps:"
-Write-Warning "  1. Azure Portal → Logic Apps → $LOGIC_APP_NAME → Workflows → Designer"
-Write-Warning "  2. Add SQL Server action → Create new connection"
+Write-Warning "  1. Azure Portal -> Logic Apps -> $LOGIC_APP_NAME -> Workflows -> Designer"
+Write-Warning "  2. Add SQL Server action -> Create new connection"
 Write-Warning "  3. Connection name: sql"
 Write-Warning "  4. Authentication: Managed Identity"
 Write-Warning "  5. Server: $SQL_SERVER_NAME.database.windows.net"
@@ -765,9 +1259,9 @@ Write-Warning "IMPORTANT: Microsoft Graph permissions must be granted manually t
 Write-Warning "These permissions require admin consent and cannot be assigned via Azure CLI"
 Write-Warning ""
 Write-Warning "Required steps:"
-Write-Warning "  1. Go to Azure Portal → Azure Active Directory → Enterprise Applications"
+Write-Warning "  1. Go to Azure Portal -> Azure Active Directory -> Enterprise Applications"
 Write-Warning "  2. Search for your Logic App: $LOGIC_APP_NAME"
-Write-Warning "  3. Navigate to Permissions → Add permissions → Microsoft Graph"
+Write-Warning "  3. Navigate to Permissions -> Add permissions -> Microsoft Graph"
 Write-Warning "  4. Add the following Application permissions:"
 Write-Warning "     Microsoft Forms:"
 Write-Warning "       - Forms.Read.All"
@@ -824,16 +1318,24 @@ if (-not $subscriptions) {
 $apimSubscriptionKey1 = $null
 $apimSubscriptionKey2 = $null
 
-if ($subscriptions.Count -ge 1) {
-    $key1Response = az rest --method POST --uri "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME/subscriptions/$($subscriptions[0].SubscriptionId)/listSecrets?api-version=2021-08-01" --query "primaryKey" --output tsv
-    $apimSubscriptionKey1 = $key1Response
-    Write-Info "Retrieved subscription key for Risk Assessment & Employment APIs: $($subscriptions[0].SubscriptionId)"
+if ($subscriptions -and $subscriptions.Count -ge 1) {
+    $key1Response = az rest --method POST --uri "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME/subscriptions/$($subscriptions[0].SubscriptionId)/listSecrets?api-version=2021-08-01" --query "primaryKey" --output tsv 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $apimSubscriptionKey1 = $key1Response
+        Write-Info "Retrieved subscription key for Risk Assessment and Employment APIs: $($subscriptions[0].SubscriptionId)"
+    } else {
+        Write-Warning "Failed to retrieve subscription key 1 - APIM may not be accessible"
+    }
 }
 
-if ($subscriptions.Count -ge 2) {
-    $key2Response = az rest --method POST --uri "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME/subscriptions/$($subscriptions[1].SubscriptionId)/listSecrets?api-version=2021-08-01" --query "primaryKey" --output tsv
-    $apimSubscriptionKey2 = $key2Response
-    Write-Info "Retrieved subscription key for Credit Check & Demographics APIs: $($subscriptions[1].SubscriptionId)"
+if ($subscriptions -and $subscriptions.Count -ge 2) {
+    $key2Response = az rest --method POST --uri "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME/subscriptions/$($subscriptions[1].SubscriptionId)/listSecrets?api-version=2021-08-01" --query "primaryKey" --output tsv 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $apimSubscriptionKey2 = $key2Response
+        Write-Info "Retrieved subscription key for Credit Check and Demographics APIs: $($subscriptions[1].SubscriptionId)"
+    } else {
+        Write-Warning "Failed to retrieve subscription key 2 - APIM may not be accessible"
+    }
 }
 
 # Fallback to first key if only one subscription exists
@@ -843,6 +1345,15 @@ if (-not $apimSubscriptionKey2 -and $apimSubscriptionKey1) {
 }
 
 Write-Status "API Management subscription keys retrieved successfully"
+
+Write-Info "Getting current user information for database configuration..."
+# Get current user information (needed for SQL admin and final output)
+$currentUser = az account show --query user.name --output tsv
+$currentUserId = az ad signed-in-user show --query id --output tsv
+
+Write-Info "Generating SQL connection string..."
+# Generate SQL connection string for local development (ensure this is available globally)
+$sqlConnectionString = "Server=tcp:$SQL_SERVER_NAME.database.windows.net,1433;Initial Catalog=$SQL_DATABASE_NAME;Authentication=Active Directory Managed Identity;Encrypt=True;"
 
 Write-Info "Getting storage connection string..."
 # Note: Storage connection string retrieved but not used in local.settings.json as we use UseDevelopmentStorage=true for local development
@@ -919,7 +1430,6 @@ az webapp config appsettings set `
         "agent_ResourceID=$openaiResourceId" `
         "agent_openAIEndpoint=$openaiEndpoint" `
         "agent_openAIKey=$openaiKey" `
-        "sql_connectionString=$sqlConnectionString" `
         "apiManagementOperation_SubscriptionKey=$apimSubscriptionKey1" `
         "apiManagementOperation_11_SubscriptionKey=$apimSubscriptionKey1" `
         "apiManagementOperation_12_SubscriptionKey=$apimSubscriptionKey2" `
@@ -958,22 +1468,32 @@ $localSettings = @{
         agent_openAIEndpoint = $openaiEndpoint
         agent_openAIKey = $openaiKey
         "sql_connectionString" = $sqlConnectionString
-        apiManagementOperation_SubscriptionKey = $apimSubscriptionKey1
-        apiManagementOperation_11_SubscriptionKey = $apimSubscriptionKey1
-        apiManagementOperation_12_SubscriptionKey = $apimSubscriptionKey2
-        apiManagementOperation_13_SubscriptionKey = $apimSubscriptionKey2
+        riskAssessmentAPI_SubscriptionKey = $apimSubscriptionKey1
+        employmentValidationAPI_SubscriptionKey = $apimSubscriptionKey1
+        creditCheckAPI_SubscriptionKey = $apimSubscriptionKey2
+        demographicVerificationAPI_SubscriptionKey = $apimSubscriptionKey2
         "approvalAgent-policyDocument-URI" = $policyUrl
         "PolicyDocumentURL" = $policyUrl
         "PolicyDocumentURI" = $policyUrl
-        "microsoftforms-2-ConnectionRuntimeUrl" = "<Add Microsoft Forms connection runtime URL>"
-        "teams-1-ConnectionRuntimeUrl" = "<Add Microsoft Teams connection runtime URL>"
-        "office365-ConnectionRuntimeUrl" = "<Add Outlook connection runtime URL>"
-        "microsoftforms-2-connectionKey" = "@connectionKey('microsoftforms-2')"
-        "teams-1-connectionKey" = "@connectionKey('teams-1')"
-        "office365-connectionKey" = "@connectionKey('office365')"
+        "formsConnection-ConnectionRuntimeUrl" = "<Add Microsoft Forms connection runtime URL>"
+        "teamsConnection-ConnectionRuntimeUrl" = "<Add Microsoft Teams connection runtime URL>"
+        "outlookConnection-ConnectionRuntimeUrl" = "<Add Outlook connection runtime URL>"
+        "formsConnection-connectionKey" = "@connectionKey('formsConnection')"
+        "teamsConnection-connectionKey" = "@connectionKey('teamsConnection')"
+        "outlookConnection-connectionKey" = "@connectionKey('outlookConnection')"
         "TeamsGroupId" = "12345678-1234-1234-1234-123456789012"
         "TeamsChannelId" = "19:abcd1234567890abcd1234567890abcd@thread.tacv2"
         "DemoUserEmail" = "REPLACE_WITH_YOUR_EMAIL@example.com"
+        
+        # API Management Configuration
+        "ApiManagementServiceName" = $APIM_SERVICE_NAME
+        "ApiManagementBaseUrl" = "https://$APIM_SERVICE_NAME.azure-api.net/risk"
+        "ApiManagementEmploymentUrl" = "https://$APIM_SERVICE_NAME.azure-api.net/employment" 
+        "ApiManagementCreditUrl" = "https://$APIM_SERVICE_NAME.azure-api.net/credit"
+        "ApiManagementVerifyUrl" = "https://$APIM_SERVICE_NAME.azure-api.net/verify"
+        
+        # Additional Policy Document reference for backwards compatibility
+        "LoanPolicyDocumentUrl" = $policyUrl
     }
 }
 
@@ -986,26 +1506,36 @@ Write-Info "The file contains all necessary configuration values for your Logic 
 
 Write-Header "Next Steps"
 Write-Info "1. Setup Database Schema:"
-Write-Info "   - Open Azure Portal → SQL Database → Query Editor"
+Write-Info "   - Open Azure Portal -> SQL Database -> Query Editor"
 Write-Info "   - Authenticate with Microsoft Entra ID"
 Write-Info "   - Run the database-setup.sql script to create tables and sample data"
 Write-Info "2. Deploy using VS Code Azure Logic Apps Extension:"
 Write-Info "   a. Open LogicApps folder in VS Code"
 Write-Info "   b. Install Azure Logic Apps extension" 
-Write-Info "   c. Deploy workflows to ai-loan-agent-logicapp"
+Write-Info "   c. Deploy workflows to $LOGIC_APP_NAME"
 Write-Info "   d. SQL connections will work immediately with connection string authentication"
 Write-Info "3. Grant Microsoft Graph Permissions:"
 Write-Info "   - Run: .\grant-graph-permissions.ps1 -ManagedIdentityPrincipalId '<YOUR-LOGIC-APP-PRINCIPAL-ID>'"
-Write-Info "   - Or use Azure Portal → Microsoft Entra ID → Enterprise Applications method"
+Write-Info "   - Or use Azure Portal -> Microsoft Entra ID -> Enterprise Applications method"
 Write-Info "4. Authorize API Connections:"
-Write-Info "   - Azure Portal → Logic App → Connections → Authorize each Microsoft 365 connection"
+Write-Info "   - Azure Portal -> Logic App -> Connections -> Authorize each Microsoft 365 connection"
 Write-Info "5. Deploy Logic App workflows using VS Code Azure Logic Apps extension:"
 Write-Info "   a. Open LogicApps folder in VS Code"
 Write-Info "   b. Install Azure Logic Apps extension"
-Write-Info "   c. Deploy workflows to ai-loan-agent-logicapp"
+Write-Info "   c. Deploy workflows to $LOGIC_APP_NAME"
 Write-Info "   d. All connections including SQL will work immediately with deployed configuration"
 Write-Info "6. Configure Microsoft Forms and Teams workspace (see SETUPCONNECTIONS.md)"
 Write-Info "7. Test the system with a sample loan application"
+
+Write-Header "Resource Summary"
+Write-Status "✓ Resource Group: $ResourceGroup"
+Write-Status "✓ SQL Server: $SQL_SERVER_NAME.database.windows.net"
+Write-Status "✓ SQL Database: $SQL_DATABASE_NAME"
+Write-Status "✓ OpenAI Service: $OPENAI_ACCOUNT_NAME"
+Write-Status "✓ API Management: $APIM_SERVICE_NAME"
+Write-Status "✓ Logic App: $LOGIC_APP_NAME"
+Write-Status "✓ Storage Account: $STORAGE_ACCOUNT_NAME"
+Write-Status "✓ Blob Storage: $BLOB_STORAGE_NAME"
 
 Write-Header "Important Notes"
 Write-Info "SQL Server: $SQL_SERVER_NAME.database.windows.net"
@@ -1018,7 +1548,7 @@ Write-Info "Resource Group: $ResourceGroup"
 Write-Info ""
 Write-Header "Database Setup Required"
 Write-Warning "IMPORTANT: Run database-setup.sql script to create required tables"
-Write-Info "1. Portal Method: Azure Portal → SQL Database → Query Editor → Authenticate → Run script"
+Write-Info "1. Portal Method: Azure Portal -> SQL Database -> Query Editor -> Authenticate -> Run script"
 Write-Info "2. sqlcmd Method: sqlcmd -S $SQL_SERVER_NAME.database.windows.net -d $SQL_DATABASE_NAME -G -i database-setup.sql"
 Write-Info ""
 Write-Info "To clean up all resources: az group delete --name $ResourceGroup --yes --no-wait"
@@ -1032,9 +1562,9 @@ Write-Status "✓ Automatic local.settings.json file generation"
 Write-Status "✓ API Management subscription keys automatically mapped to appropriate APIs"
 
 Write-Header "API Management Key Mapping"
-Write-Info "Risk Assessment API (olympia-risk-assessment) → apiManagementOperation_SubscriptionKey"
-Write-Info "Employment Validation API (litware-employment-validation) → apiManagementOperation_11_SubscriptionKey"
-Write-Info "Credit Check API (cronus-credit) → apiManagementOperation_12_SubscriptionKey"
-Write-Info "Demographics API (northwind-demographic-verification) → apiManagementOperation_13_SubscriptionKey"
+Write-Info "Risk Assessment API (olympia-risk-assessment) -> riskAssessmentAPI_SubscriptionKey"
+Write-Info "Employment Validation API (litware-employment-validation) -> employmentValidationAPI_SubscriptionKey"
+Write-Info "Credit Check API (cronus-credit) -> creditCheckAPI_SubscriptionKey"
+Write-Info "Demographics API (northwind-demographic-verification) -> demographicVerificationAPI_SubscriptionKey"
 
 Write-Status "Deployment script completed successfully!"

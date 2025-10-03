@@ -1,6 +1,16 @@
 # Microsoft Forms - Required Fields Template
 
-Use this template when creating your "Vehicle Loan Application" form in Microsoft Forms.
+This document provides the technical specification for creating the "Vehicle Loan Application" form in Microsoft Forms.
+
+> **📋 Setup Instructions**: For step-by-step form creation instructions, see the main [README.md](README.md) → Step 2.1 Configure Microsoft Forms.
+
+## Import File Available
+
+**Quick Setup**: Use the included `Vehicle-Loan-Application-Form-Import.docx` file for fast form creation. This pre-structured document contains all required fields with proper formatting for Microsoft Forms import.
+
+## Field Type Reference
+
+After importing or creating the form manually, ensure these field types are configured correctly:
 
 ## Form Configuration
 
@@ -100,17 +110,14 @@ Use this template when creating your "Vehicle Loan Application" form in Microsof
 - Required: Yes
 - Description: "Purchase price of the vehicle (USD)"
 
-## After Creating the Form
+## Form Configuration Requirements
 
-1. **Get Form ID**: After publishing, copy the Form ID from the sharing URL
-2. **Test Submission**: Submit a test application to verify all fields work
-3. **Note Form URL**: Copy both the short URL and Form ID for configuration
+**Form Settings** (configured during setup):
+- ✅ **Require sign-in**: "Only people in my organization can respond"
+- ✅ **One response per person**: Limit to one response
+- ✅ **Record name**: For audit trail and user identification
 
-## Form ID Location
-
-The Form ID can be found in the sharing URL:
-- Short URL: `https://forms.microsoft.com/r/[FORM_ID]`
-- Example: `https://forms.microsoft.com/r/abcd12345`
-- Form ID: `abcd12345`
-
-This Form ID will be used in the Logic Apps connection configuration.
+**Form Metadata**:
+- **Title**: "Vehicle Loan Application"
+- **Description**: "Please complete all fields to submit your vehicle loan application."
+- **Form ID Format**: Extract from sharing URL `https://forms.microsoft.com/r/[FORM_ID]`

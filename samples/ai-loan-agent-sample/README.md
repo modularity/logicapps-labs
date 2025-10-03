@@ -46,8 +46,11 @@ The deployment script automatically provisions these Azure services:
 - **Azure SQL Database** - Customer history and special vehicle data storage
 - **Azure API Management** - Risk assessment, credit check, employment verification, and demographic APIs
 - **Azure Storage Account** - Workflow runtime storage
-- **Azure Blob Storage** - Policy document storage
-- **Managed Identity** - Secure authentication between services
+- **Azure Blob Storage** - Policy document storage with auto-generated SAS URLs
+- **Managed Identity & RBAC** - Secure authentication between services
+- **Network & Firewall Rules** - Proper access control and security configuration
+- **Microsoft 365 API Connections** - Forms, Teams, and Outlook integrations (require manual authorization)
+- **Complete Configuration** - Auto-generated `local.settings.json` for development
 
 ### Microsoft 365 Prerequisites
 
@@ -68,33 +71,52 @@ cd Deployment
 .\deploy.ps1
 ```
 
-**What this script creates:**
-- Azure Logic Apps Standard with managed identity
-- Azure OpenAI Service with GPT-4.1 deployment
-- Azure SQL Server and Database with Entra ID authentication
-- Azure API Management with 4 mock APIs for testing
-- Azure Storage Account and Blob containers
-- Policy document uploaded to blob storage
-- Network security and firewall configurations
-- Microsoft 365 API connections (require manual authorization)
+**Enhanced Deployment Features:**
+- ✅ **Idempotent**: Safe to run multiple times - existing resources are detected and skipped
+- 🔄 **Unique Naming**: Automatically generates unique resource names to avoid conflicts
+- 🛠️ **Error Recovery**: Improved error handling with detailed troubleshooting guidance
+- 📝 **Auto-Configuration**: Generates `local.settings.json` with deployed resource values
+- 🔧 **Troubleshooting**: See `TROUBLESHOOTING.md` for common issues and solutions
 
-*Note: Deployment could take 30-45 minutes - use this time to complete Step 2 (Microsoft 365 configuration).*
+**Deployment Time:**
+- *Typical Duration: 45-60 minutes (API Management creation takes 30-45 minutes)*
+- *⏰ Use this time to complete Step 2 (Microsoft 365 configuration)*
+- *The script will show progress and can be safely interrupted and resumed*
 
-### Step 2: Configure Microsoft 365
+**Customization Options:**
+```powershell
+# Custom resource group and project name
+.\deploy.ps1 -ResourceGroup "contoso-loan-rg" -ProjectName "contoso-loan"
+
+# Different Azure region
+.\deploy.ps1 -Location "westus"
+
+# Use existing API Management (faster deployment)
+.\deploy.ps1 -APIMServiceName "existing-apim-service"
+
+# Skip login if already authenticated
+.\deploy.ps1 -SkipLogin
+```
+
+### Step 2: Configure Microsoft 365 (During Deployment)
+
+*⏰ Complete this step WHILE Step 1 is running to maximize efficiency*
 
 #### 2.1 Create Microsoft Forms
 
-1. **Navigate to Microsoft Forms**: Go to [forms.microsoft.com](https://forms.microsoft.com)
-2. **Create New Form**: Click "New Form" → "Blank Form"
-3. **Set Form Title**: "Vehicle Loan Application"
-4. **Add Required Fields**: Follow the exact template in `FORM-FIELDS-TEMPLATE.md`
-5. **Configure Settings**:
-   - ✅ Require sign-in
-   - ✅ One response per person
-   - ✅ Record name
-6. **Publish Form**: Click "Share" → Copy the Form ID from URL
-   - URL format: `https://forms.microsoft.com/r/[FORM_ID]`
-   - Save the Form ID for later configuration
+1. **Visit Microsoft Forms**: Go to [https://forms.microsoft.com/Pages/DesignPagev2.aspx](https://forms.microsoft.com/Pages/DesignPagev2.aspx)
+2. **Select Quick Import**: Click "Quick import" at the top of the page
+3. **Choose Document**: Select the `Vehicle-Loan-Application-Form-Import.docx` file (included in this folder)
+4. **Confirm Form Type**: Review and confirm the form type when prompted
+5. **Review Form**: Once the form is imported, review all fields and make any necessary adjustments (change field types as needed)
+6. **Get Form URL**: 
+   - Click "Collect responses" 
+   - Select "Copy link" to obtain the form URL
+   - The URL will include the Form ID that you'll need for the workflow configuration
+7. **Save Form ID**: Extract the ID from the URL format: `https://forms.microsoft.com/Pages/ResponsePage.aspx?id=[FORM_ID]`
+8. **Save for Later**: Keep the Form ID - you'll add it to `local.settings.json` in Step 4
+
+**⚠️ Note**: After import, you may need to adjust field types (Date, Number, Choice) and add dropdown options for Vehicle Make as described in `FORM-FIELDS-TEMPLATE.md`.
 
 #### 2.2 Setup Microsoft Teams
 
@@ -109,12 +131,44 @@ cd Deployment
    - Privacy: "Standard"
 3. **Extract IDs**:
    - Open the channel in web browser
-   - Copy the URL
-   - Extract Group ID and Channel ID from URL path
-   - Format: `/l/team/[GROUP_ID]/conversations/[CHANNEL_ID]`
-   - Save both IDs for configuration
+   - Copy the URL which will look like: `https://teams.microsoft.com/l/channel/19%3A[encoded-channel-id]%40thread.tacv2/[channel-name]?groupId=[group-id]&tenantId=[tenant-id]`
+   - Extract Group ID from `groupId=` parameter
+   - Extract Channel ID from the encoded part (URL decode the `19%3A...%40thread.tacv2` section)
+   - Save both IDs for configuration in Step 4
 
-#### 2.3 Authorize API Connections
+---
+
+## Post-Deployment Configuration
+
+*⚠️ Complete Steps 3-6 AFTER Step 1 (deployment) finishes*
+
+### Step 3: Setup Database Schema
+
+1. **Open Azure Portal** → Your Resource Group → Your SQL Database
+2. **Click "Query editor (preview)"** in the left sidebar
+3. **Sign in with "Active Directory authentication"**
+4. **Update the script**:
+   - Open `Deployment/complete-database-setup.sql`
+   - Replace `your-logic-app-name` with your actual Logic App name
+   - Copy the updated script
+5. **Paste into Query Editor and click "Run"**
+
+This creates sample customer data, special vehicle tables, and grants your Logic App database access.
+
+**Troubleshooting**: If you get "Access Denied", ensure you have Azure AD admin permissions on the SQL Server.
+
+### Step 4: Grant Microsoft Graph Permissions
+
+```powershell
+cd Deployment
+.\grant-graph-permissions.ps1 -ResourceGroup "your-resource-group" -LogicAppName "your-logic-app-name"
+```
+
+This grants the Logic App managed identity permissions to read Microsoft 365 data.
+
+### Step 5: Authorize API Connections & Configure Runtime URLs
+
+#### 5.1 Authorize Microsoft 365 Connections
 
 1. **Navigate to Azure Portal** → Resource Groups → `[your-resource-group]`
 2. **For each connection** (`formsConnection`, `teamsConnection`, `outlookConnection`):
@@ -125,31 +179,81 @@ cd Deployment
    - Click "Save"
 3. **Verify Status**: All connections should show "Connected" status
 
-> 🔧 **Troubleshooting**: If authorization fails, ensure you have Microsoft 365 admin permissions and the required licenses.
+#### 5.2 Generate Runtime URLs for Connections
 
-### Step 3: Setup Database Schema
+```powershell
+cd Deployment/helpers
+.\generate-runtime-urls.ps1 -SubscriptionId "your-subscription-id" -ResourceGroup "your-resource-group"
+```
 
-1. Navigate to Azure Portal → SQL Database → Query Editor
-2. Authenticate with Microsoft Entra ID
-3. Run `database-setup.sql` (creates tables and sample data)
-4. Run `create-managed-identity-user.sql` (grants Logic App access)
+This generates the runtime URLs needed for your `local.settings.json` file.
 
-### Step 4: Configure Local Development
+### Step 6: Finalize Local Development Configuration
 
-*Complete this step AFTER Steps 1-3 are finished:*
+✨ **Good News**: The enhanced `deploy.ps1` script automatically generates your `local.settings.json` file with most values populated!
 
-1. Navigate to `LogicApps` folder
-2. Follow setup instructions in `LogicApps/README.md`
-3. Create and configure `local.settings.json` with values from deployed resources
+**Auto-Generated Configuration:**
+- ✅ All Azure resource connection strings and keys
+- ✅ API Management subscription keys  
+- ✅ OpenAI endpoint and keys
+- ✅ Policy document URLs
+- ✅ SQL connection strings
 
-### Step 5: Deploy Logic Apps
+**Manual Updates Required:**
+1. **Form ID**: Add your Microsoft Forms Form ID from Step 2.1
+2. **Teams Configuration**: Update `TeamsGroupId` and `TeamsChannelId` from Step 2.2
+3. **Email Address**: Update `DemoUserEmail` with your actual email address
+4. **Project Path**: Update `ProjectDirectoryPath` with your local LogicApps folder path
+5. **Runtime URLs**: Add the Microsoft 365 connection runtime URLs from Step 5.2
 
-*Complete this step AFTER configuring local.settings.json (Step 4):*
+**Example manual updates needed in `local.settings.json`:**
+```json
+{
+  "FormsFormId": "your-actual-form-id-from-step-2",
+  "TeamsGroupId": "f6c2f8c4-169d-45f0-984f-5ddf92745896",
+  "TeamsChannelId": "19:qphIGD96Fek2nrKbl-diAx7d6iNZ8aJq6dtVHtZVwNI1@thread.tacv2",
+  "DemoUserEmail": "your-email@company.com",
+  "ProjectDirectoryPath": "c:\\\\path\\\\to\\\\your\\\\LogicApps"
+}
+```
+
+### Step 7: Configure API Management Policies (If Needed)
+
+The deployment script automatically creates mock API policies, but you may need to update them manually if deployment issues occurred.
+
+#### Option A: Automatic (Default)
+The `deploy.ps1` script automatically calls `create-apim-policies.ps1` to configure all mock API policies.
+
+#### Option B: Manual Configuration in Azure Portal
+
+If you need to manually configure or update the API policies:
+
+1. **Navigate to API Management**: Azure Portal → Your Resource Group → Your API Management service
+2. **For each API** (Credit Check, Employment Validation, Demographics, Risk Assessment):
+   - Go to "APIs" → Select the API → "All operations" → "Policies"
+   - Click "Add policy" → "Code editor"
+   - Copy the corresponding policy XML from the `Deployment/policies/` folder:
+     - `policy-cronus-credit.xml` → Credit Check API
+     - `policy-litware-employment-validation.xml` → Employment Validation API  
+     - `policy-northwind-demographic-verification.xml` → Demographics API
+     - `policy-olympia-risk-assessment.xml` → Risk Assessment API
+   - Paste the XML content and click "Save"
+
+3. **Verify Policies**: Test each API endpoint to ensure mock responses work correctly
+
+**Policy Structure Notes:**
+- All policies use `<return-response>` in the `<backend>` section
+- Mock data is based on input patterns (SSN endings, employer names)
+- Each policy includes proper error handling with try/catch blocks
+
+### Step 8: Deploy Logic Apps
+
+*Complete this step AFTER configuring local.settings.json (Step 6):*
 
 **Deploy workflows with VS Code**: See instructions in `LogicApps/README.md` → "Next Steps: Deploy to Azure"
 
  
-### Step 6: End-to-End Testing
+### Step 9: End-to-End Testing
 
 1. Submit loan application via Microsoft Forms with entry from `SAMPLE-DATA.md`
 2. Monitor workflow execution in Azure Portal
@@ -157,9 +261,30 @@ cd Deployment
 
 ## Troubleshooting
 
+### Deployment Issues
+
+**For deployment script problems**, see the comprehensive troubleshooting guide:
+- 📖 **`Deployment/TROUBLESHOOTING.md`** - Complete troubleshooting guide with solutions
+
+**Common deployment solutions:**
+- **Script fails**: Re-run the script - it's idempotent and will resume where it left off
+- **SQL Server naming conflicts**: Script auto-generates unique names to avoid conflicts  
+- **Resource already exists**: Script detects and reuses existing resources safely
+- **API Management timeout**: Normal behavior - APIM creation takes 30-45 minutes
+- **Storage account conflicts**: Script automatically generates new unique names
+
+### Runtime Issues
+
 **SQL Connection Issues**: Verify managed identity user created in database
 **Microsoft 365 Unauthorized**: Re-authorize connections in Azure Portal  
 **Workflow Deployment Errors**: Ensure all connections use consistent configuration
+
+### Getting Help
+
+1. **Check logs**: Deployment script provides detailed error messages with solutions
+2. **Re-run deployment**: Script is safe to run multiple times
+3. **Clean start**: Delete resource group and run script again
+4. **Review guides**: Check `TROUBLESHOOTING.md` for step-by-step solutions
 
 ## Configuration Notes
 
@@ -299,8 +424,12 @@ flowchart TD
 
 ## Deployment Folder Reference
 
+### Main Deployment Script
+- **`deploy.ps1`** - Enhanced main deployment script with improved error handling, unique naming, and idempotent behavior
+  - **Features**: Automatic conflict resolution, detailed logging, safe re-runs, auto-generated configurations
+  - **Documentation**: See `TROUBLESHOOTING.md` for comprehensive guidance
+
 ### Automated Scripts (Called by deploy.ps1)
-- **`deploy.ps1`** - Main deployment script that provisions all Azure resources
 - **`create-apim-policies.ps1`** - Automatically called by deploy.ps1 to configure APIM mock APIs
 
 ### Manual Scripts (Require User Execution)
@@ -308,6 +437,9 @@ flowchart TD
 - **`create-managed-identity-user.sql`** - Grants Logic App database access (run after database-setup.sql)
 - **`complete-database-setup.sql`** - Alternative single script combining database-setup.sql + managed identity setup
 - **`grant-graph-permissions.ps1`** - Grants Microsoft Graph permissions to Logic App managed identity
+
+### Documentation & Support
+- **`TROUBLESHOOTING.md`** - 🆕 Comprehensive troubleshooting guide for deployment issues
 
 ### Helper Scripts (Optional/Troubleshooting)
 - **`helpers/generate-runtime-urls.ps1`** - Generates connection runtime URLs for manual configuration

@@ -95,14 +95,21 @@ function Get-ConnectionDetails {
 # Extract Microsoft Forms connection details
 Write-Host "📝 Microsoft Forms Connection" -ForegroundColor Green
 Write-Host "==============================" -ForegroundColor Green
-$formsConnection = Get-ConnectionDetails "microsoftforms-1"
+$formsConnection = Get-ConnectionDetails "formsConnection"
 
 Write-Host ""
 
 # Extract Teams connection details
 Write-Host "👥 Microsoft Teams Connection" -ForegroundColor Green
 Write-Host "==============================" -ForegroundColor Green
-$teamsConnection = Get-ConnectionDetails "teams"
+$teamsConnection = Get-ConnectionDetails "teamsConnection"
+
+Write-Host ""
+
+# Extract Outlook connection details
+Write-Host "📧 Microsoft Outlook Connection" -ForegroundColor Green
+Write-Host "================================" -ForegroundColor Green
+$outlookConnection = Get-ConnectionDetails "outlookConnection"
 
 Write-Host ""
 
@@ -113,8 +120,8 @@ Write-Host ""
 
 if ($formsConnection) {
     Write-Host "Microsoft Forms:" -ForegroundColor Cyan
-    Write-Host "`"microsoftforms-1-ConnectionRuntimeUrl`": `"$($formsConnection.RuntimeUrl)`"," -ForegroundColor Yellow
-    Write-Host "`"microsoftforms-1-connectionKey`": `"<Get from Logic Apps Designer>`"," -ForegroundColor Yellow
+    Write-Host "`"formsConnection-ConnectionRuntimeUrl`": `"$($formsConnection.RuntimeUrl)`"," -ForegroundColor Yellow
+    Write-Host "`"formsConnection-connectionKey`": `"@connectionKey('formsConnection')`"," -ForegroundColor Yellow
 } else {
     Write-Host "❌ Microsoft Forms connection not found. Please create it in VS Code first." -ForegroundColor Red
 }
@@ -123,19 +130,30 @@ Write-Host ""
 
 if ($teamsConnection) {
     Write-Host "Microsoft Teams:" -ForegroundColor Cyan
-    Write-Host "`"teams-ConnectionRuntimeUrl`": `"$($teamsConnection.RuntimeUrl)`"," -ForegroundColor Yellow
-    Write-Host "`"teams-connectionKey`": `"<Get from Logic Apps Designer>`"," -ForegroundColor Yellow
+    Write-Host "`"teamsConnection-ConnectionRuntimeUrl`": `"$($teamsConnection.RuntimeUrl)`"," -ForegroundColor Yellow
+    Write-Host "`"teamsConnection-connectionKey`": `"@connectionKey('teamsConnection')`"," -ForegroundColor Yellow
 } else {
     Write-Host "❌ Microsoft Teams connection not found. Please create it in VS Code first." -ForegroundColor Red
 }
 
 Write-Host ""
 
-# Check if connections exist
-$formsExists = $connections | Where-Object { $_.name -eq "microsoftforms-1" }
-$teamsExists = $connections | Where-Object { $_.name -eq "teams" }
+if ($outlookConnection) {
+    Write-Host "Microsoft Outlook:" -ForegroundColor Cyan
+    Write-Host "`"outlookConnection-ConnectionRuntimeUrl`": `"$($outlookConnection.RuntimeUrl)`"," -ForegroundColor Yellow
+    Write-Host "`"outlookConnection-connectionKey`": `"@connectionKey('outlookConnection')`"," -ForegroundColor Yellow
+} else {
+    Write-Host "❌ Microsoft Outlook connection not found. Please create it in VS Code first." -ForegroundColor Red
+}
 
-if (-not $formsExists -and -not $teamsExists) {
+Write-Host ""
+
+# Check if connections exist
+$formsExists = $connections | Where-Object { $_.name -eq "formsConnection" }
+$teamsExists = $connections | Where-Object { $_.name -eq "teamsConnection" }
+$outlookExists = $connections | Where-Object { $_.name -eq "outlookConnection" }
+
+if (-not $formsExists -and -not $teamsExists -and -not $outlookExists) {
     Write-Host "⚠️  No Microsoft 365 connections found!" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "Next Steps:" -ForegroundColor Cyan

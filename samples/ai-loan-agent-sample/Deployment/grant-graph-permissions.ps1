@@ -9,9 +9,9 @@
     to the Logic Apps managed identity for Microsoft Forms, Teams, and Outlook integration.
     
     Required permissions:
-    - Forms.Read.All, Forms.ReadWrite.All (Microsoft Forms)
     - Group.ReadWrite.All, Channel.ReadBasic.All (Microsoft Teams)
     - Mail.Send, Mail.ReadWrite (Microsoft Outlook)
+    - User.Read.All (Core Authentication)
     
     Note: You must have Global Administrator or Privileged Role Administrator 
     permissions in Microsoft Entra ID to run this script.
@@ -19,6 +19,13 @@
 .PARAMETER ManagedIdentityPrincipalId
     The Principal ID of the Logic Apps managed identity. 
     You can find this in Azure Portal → Logic App → Identity → System assigned → Object (principal) ID
+    If not provided, the script will attempt to find it automatically using LogicAppName and ResourceGroup.
+
+.PARAMETER LogicAppName
+    The name of the Logic App. Used to automatically extract the Principal ID if ManagedIdentityPrincipalId is not provided.
+
+.PARAMETER ResourceGroup
+    The resource group containing the Logic App. Used with LogicAppName to automatically extract the Principal ID.
 
 .PARAMETER TenantId
     The Microsoft Entra ID tenant ID. If not provided, uses current tenant.
@@ -40,8 +47,14 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [string]$ManagedIdentityPrincipalId,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$LogicAppName,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$ResourceGroup,
     
     [Parameter(Mandatory = $false)]
     [string]$TenantId,
@@ -81,8 +94,8 @@ $RequiredPermissions = @(
         Service = "Microsoft Outlook"
     },
     @{
-        Permission = "User.Read"
-        Description = "Read user profile for connection authentication"
+        Permission = "User.Read.All"
+        Description = "Read all users' basic profiles (Core Authentication)"
         Service = "Core Authentication"
     }
 )
@@ -92,6 +105,36 @@ $GraphAppId = "00000003-0000-0000-c000-000000000000"
 
 Write-Host "🚀 AI Loan Agent - Microsoft Graph Permissions Setup" -ForegroundColor Cyan
 Write-Host "=" * 60
+
+# Function to extract Logic App managed identity Principal ID
+function Get-LogicAppPrincipalId {
+    param(
+        [string]$LogicAppName,
+        [string]$ResourceGroup
+    )
+    
+    Write-Host "🔍 Extracting Logic App managed identity Principal ID..." -ForegroundColor Yellow
+    Write-Host "   Logic App: $LogicAppName"
+    Write-Host "   Resource Group: $ResourceGroup"
+    
+    try {
+        # Get the Logic App and extract its system-assigned managed identity Principal ID
+        $principalId = az logicapp show --name $LogicAppName --resource-group $ResourceGroup --query identity.principalId --output tsv
+        
+        if ([string]::IsNullOrWhiteSpace($principalId) -or $principalId -eq "null") {
+            Write-Host "   ❌ Logic App not found or managed identity not enabled" -ForegroundColor Red
+            Write-Host "   💡 Ensure the Logic App exists and has system-assigned managed identity enabled" -ForegroundColor Yellow
+            return $null
+        }
+        
+        Write-Host "   ✅ Found Principal ID: $principalId" -ForegroundColor Green
+        return $principalId.Trim()
+    }
+    catch {
+        Write-Host "   ❌ Failed to extract Principal ID: $($_.Exception.Message)" -ForegroundColor Red
+        return $null
+    }
+}
 
 # Function to check if required modules are installed
 function Test-RequiredModules {
@@ -338,8 +381,8 @@ function Show-Summary {
         Write-Host ""
         Write-Host "📋 Next Steps:" -ForegroundColor Yellow
         Write-Host "   1. Wait 5-10 minutes for permissions to propagate"
-        Write-Host "   2. Navigate to Azure Portal → Resource Groups → ai-loan-agent-rg"
-        Write-Host "   3. Authorize API connections: microsoftforms-1, teams, outlook"
+        Write-Host "   2. Navigate to Azure Portal → Resource Groups → [your-resource-group]"
+        Write-Host "   3. Authorize API connections: formsConnection, teamsConnection, outlookConnection"
         Write-Host "   4. Test connections in Logic Apps Designer"
         Write-Host ""
         Write-Host "🔗 Connection Authorization Guide:"
@@ -350,10 +393,24 @@ function Show-Summary {
 # Main execution
 try {
     # Validate required parameters
-    if (-not $ManagedIdentityPrincipalId) {
-        Write-Host "❌ ManagedIdentityPrincipalId is required" -ForegroundColor Red
-        Write-Host "   Find this in: Azure Portal → Logic App → Identity → System assigned → Object (principal) ID" -ForegroundColor Yellow
+    if (-not $ManagedIdentityPrincipalId -and (-not $LogicAppName -or -not $ResourceGroup)) {
+        Write-Host "❌ Missing required parameters" -ForegroundColor Red
+        Write-Host "   Either provide:" -ForegroundColor Yellow
+        Write-Host "   - ManagedIdentityPrincipalId (find in Azure Portal → Logic App → Identity → System assigned → Object ID)" -ForegroundColor Yellow
+        Write-Host "   - OR LogicAppName and ResourceGroup (script will extract Principal ID automatically)" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "   Examples:" -ForegroundColor Cyan
+        Write-Host "   .\grant-graph-permissions.ps1 -ManagedIdentityPrincipalId '12345678-1234-1234-1234-123456789012'" -ForegroundColor White
+        Write-Host "   .\grant-graph-permissions.ps1 -LogicAppName 'my-logicapp' -ResourceGroup 'my-rg'" -ForegroundColor White
         exit 1
+    }
+    
+    # Extract Principal ID if not provided
+    if (-not $ManagedIdentityPrincipalId) {
+        $ManagedIdentityPrincipalId = Get-LogicAppPrincipalId -LogicAppName $LogicAppName -ResourceGroup $ResourceGroup
+        if (-not $ManagedIdentityPrincipalId) {
+            exit 1
+        }
     }
     
     # Check required modules
