@@ -82,7 +82,7 @@
                                         "template": "/assessment"
                                     },
                                     "body": {
-                                        "SSN": "@body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']"
+                                        "SSN": "@body('Get_response_details')?[parameters('FormFieldId_SSN')]"
                                     }
                                 }
                             }
@@ -212,7 +212,7 @@
                         }
                     },
                     "method": "get",
-                    "path": "/formapi/api/forms('@{encodeURIComponent('PUT_YOUR_FORM_ID_HERE')}')/responses",
+                    "path": "/formapi/api/forms('@{encodeURIComponent(parameters('FormsFormId'))}')/responses",
                     "queries": {
                         "response_id": "@triggerBody()?['resourceData']?['responseId']"
                     }
@@ -231,9 +231,9 @@
                         "template": "/employment"
                     },
                     "body": {
-                        "Employer": "@body('Get_response_details')?['r0aeb0d43f1e24d9ea19349c800745070']",
-                        "Salary": "@body('Get_response_details')?['rfa73af07e6c2418fbaaa54752de08ba9']",
-                        "YearsWorked": "@body('Get_response_details')?['re46703986d6c4a9ca5c0cd26ff515a78']"
+                        "Employer": "@body('Get_response_details')?[parameters('FormFieldId_Employer')]",
+                        "Salary": "@body('Get_response_details')?[parameters('FormFieldId_Salary')]",
+                        "YearsWorked": "@body('Get_response_details')?[parameters('FormFieldId_YearsWorked')]"
                     }
                 },
                 "runAfter": {
@@ -254,9 +254,9 @@
                         "template": "/creditscore"
                     },
                     "body": {
-                        "SSN": "@body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']",
-                        "Salary": "@body('Get_response_details')?['rfa73af07e6c2418fbaaa54752de08ba9']",
-                        "YearsInRole": "@body('Get_response_details')?['re46703986d6c4a9ca5c0cd26ff515a78']"
+                        "SSN": "@body('Get_response_details')?[parameters('FormFieldId_SSN')]",
+                        "Salary": "@body('Get_response_details')?[parameters('FormFieldId_Salary')]",
+                        "YearsInRole": "@body('Get_response_details')?[parameters('FormFieldId_YearsWorked')]"
                     }
                 },
                 "runAfter": {
@@ -277,9 +277,9 @@
                         "template": "/demographics"
                     },
                     "body": {
-                        "Name": "@body('Get_response_details')?['r781e65672eb042ca9f8d75206e68c110']",
-                        "DateOfBirth": "@body('Get_response_details')?['re997bef614374a08800ca72624ff3c42']",
-                        "SSN": "@body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']"
+                        "Name": "@body('Get_response_details')?[parameters('FormFieldId_Name')]",
+                        "DateOfBirth": "@body('Get_response_details')?[parameters('FormFieldId_DateOfBirth')]",
+                        "SSN": "@body('Get_response_details')?[parameters('FormFieldId_SSN')]"
                     }
                 },
                 "runAfter": {
@@ -291,10 +291,10 @@
             "Application_Summary": {
                 "type": "Compose",
                 "inputs": {
-                    "SSN": "@{body('Get_response_details')?['rc385353d74dc474ba39dd241f6b25ea8']}",
-                    "LoanAmount": "@{body('Get_response_details')?['r60559252a4bd4438a4ddc3298d744ff0']}",
-                    "VehicleMake": "@{body('Get_response_details')?['rf7bf33c508a348edaafb275b0a2876d6']}",
-                    "Salary": "@{body('Get_response_details')?['rfa73af07e6c2418fbaaa54752de08ba9']}",
+                    "SSN": "@{body('Get_response_details')?[parameters('FormFieldId_SSN')]}",
+                    "LoanAmount": "@{body('Get_response_details')?[parameters('FormFieldId_LoanAmount')]}",
+                    "VehicleMake": "@{body('Get_response_details')?[parameters('FormFieldId_VehicleMake')]}",
+                    "Salary": "@{body('Get_response_details')?[parameters('FormFieldId_Salary')]}",
                     "CreditScore": "@{body('Credit_check_API')?['CreditScore']}",
                     "Email": "@{body('Get_response_details')?['responder']}"
                 },
@@ -342,24 +342,59 @@
             },
             "TeamsChannelId": {
                 "type": "string"
+            },
+            "FormsFormId": {
+                "type": "string",
+                "defaultValue": "PUT_YOUR_FORM_ID_HERE"
+            },
+            "FormFieldId_SSN": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_Name": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_DateOfBirth": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_Employer": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_YearsWorked": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_Salary": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_LoanAmount": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            },
+            "FormFieldId_VehicleMake": {
+                "type": "string",
+                "defaultValue": "rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             }
         },
         "triggers": {
             "When_a_new_response_is_submitted": {
-                "type": "ApiConnection",
-                "description": "Triggers on Microsoft Forms submission",
+                "type": "ApiConnectionWebhook",
                 "inputs": {
                     "host": {
                         "connection": {
                             "referenceName": "formsConnection"
                         }
                     },
-                    "method": "get",
-                    "path": "/formapi/api/forms('@{encodeURIComponent('PUT_YOUR_FORM_ID_HERE')}')/responses"
-                },
-                "recurrence": {
-                    "frequency": "Minute",
-                    "interval": 3
+                    "body": {
+                        "eventType": "responseAdded",
+                        "notificationUrl": "@listCallbackUrl()",
+                        "source": "ms-connector"
+                    },
+                    "path": "/formapi/api/forms/@{encodeURIComponent(parameters('FormsFormId'))}/webhooks"
                 },
                 "splitOn": "@triggerBody()?['value']"
             }

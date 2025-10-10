@@ -1380,6 +1380,7 @@ $localSettings = @{
         "outlookConnection-connectionKey" = "@connectionKey('outlookConnection')"
         "TeamsGroupId" = "12345678-1234-1234-1234-123456789012"
         "TeamsChannelId" = "19:abcd1234567890abcd1234567890abcd@thread.tacv2"
+        "FormsFormId" = "your-forms-form-id-here"
         "DemoUserEmail" = "REPLACE_WITH_YOUR_EMAIL@example.com"
         
         # API Management Configuration

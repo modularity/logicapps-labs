@@ -27,6 +27,42 @@
     "type": "String",
     "value": "placeholder-channel-id"
   },
+  "FormsFormId": {
+    "type": "String",
+    "value": "@appsetting('FormsFormId')"
+  },
+  "FormFieldId_SSN": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_SSN')"
+  },
+  "FormFieldId_Name": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_Name')"
+  },
+  "FormFieldId_DateOfBirth": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_DateOfBirth')"
+  },
+  "FormFieldId_Employer": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_Employer')"
+  },
+  "FormFieldId_YearsWorked": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_YearsWorked')"
+  },
+  "FormFieldId_Salary": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_Salary')"
+  },
+  "FormFieldId_LoanAmount": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_LoanAmount')"
+  },
+  "FormFieldId_VehicleMake": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_VehicleMake')"
+  },
   "DemoUserEmail": {
     "type": "String",
     "value": "demo@example.com"

@@ -18,6 +18,10 @@
       },
       "connection": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/formsConnection"
+      },
+      "connectionRuntimeUrl": "@appsetting('formsConnection-ConnectionRuntimeUrl')",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
       }
     },
     "teamsConnection": {
@@ -26,6 +30,10 @@
       },
       "connection": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/teamsConnection"
+      },
+      "connectionRuntimeUrl": "@appsetting('teamsConnection-ConnectionRuntimeUrl')",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
       }
     },
     "outlookConnection": {
@@ -34,6 +42,10 @@
       },
       "connection": {
         "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/outlookConnection"
+      },
+      "connectionRuntimeUrl": "@appsetting('outlookConnection-ConnectionRuntimeUrl')",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
       }
     }
   },

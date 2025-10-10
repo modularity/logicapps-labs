@@ -187,11 +187,20 @@ This creates sample customer data, special vehicle tables, and grants your Logic
 
 **Troubleshooting**: If you get "Access Denied", ensure you have Microsoft Entra ID admin permissions on the SQL Server.
 
-### Step 4: Authorize API Connections & Configure Runtime URLs
+### Step 4: Configure V2 API Connections (Two-Layer Authentication)
 
-**🔗 Workflow Dependency**: *Authenticates workflow to access your Microsoft 365* - These V2 connections with access policies let the Logic App use managed identity authentication while still requiring OAuth authorization.
+**🔗 Workflow Dependency**: *Authenticates workflow to access your Microsoft 365* - V2 connections use a two-layer authentication model that requires both OAuth authorization AND RBAC permissions.
 
-#### 4.1 Authorize Microsoft 365 V2 Connections
+**Understanding V2 Connection Authentication**:
+
+Logic Apps Standard V2 OAuth connections require **TWO separate authentication layers**:
+
+- **Layer 1: Connection → API (OAuth)** - The connection resource stores an OAuth token to access Microsoft 365 APIs
+- **Layer 2: Logic App → Connection (RBAC)** - The Logic App's managed identity needs Contributor role on the connection resource
+
+Both layers must be configured for the workflow to successfully use Microsoft Forms, Teams, and Outlook.
+
+#### 4.1 Authorize Microsoft 365 V2 Connections (Layer 1)
 
 **✨ Enhanced**: The deployment now creates V2 connections with automatic access policies!
 
@@ -207,12 +216,96 @@ This creates sample customer data, special vehicle tables, and grants your Logic
 
 **📧 Email Sender**: The workflow will send a loan application decision email from the Microsoft 365 account used to authorize `outlookConnection`.
 
-#### 4.2 Generate Runtime URLs for Connections```powershell
+#### 4.2 Grant Connection Permissions (Layer 2)
+
+**⚠️ Critical**: The Logic App's managed identity needs Contributor role on each connection resource:
+
+```powershell
 cd Deployment/helpers
-.\generate-runtime-urls.ps1 -SubscriptionId "your-subscription-id" -ResourceGroup "your-resource-group"
+.\grant-connection-permissions.ps1 `
+    -LogicAppName "your-logic-app-name" `
+    -ResourceGroup "your-resource-group"
 ```
 
-This generates the runtime URLs needed for your `local.settings.json` file.
+**What this script does**:
+- Retrieves your Logic App's managed identity Principal ID
+- Grants Contributor role on all three connection resources:
+  - `formsConnection`
+  - `teamsConnection`
+  - `outlookConnection`
+- Verifies the role assignments are active
+
+**Expected output**:
+```
+✅ Granted Contributor role on formsConnection
+✅ Granted Contributor role on teamsConnection
+✅ Granted Contributor role on outlookConnection
+
+Summary: 3 permissions granted, 0 errors
+```
+
+**Why this is needed**: 
+- **Layer 2 RBAC**: Without these permissions, the webhook trigger will fail with "BadRequest" or "Value cannot be null (Parameter 'scheme')" errors
+
+#### 4.3 Add Logic App to Teams Team (Manual)
+
+**⚠️ Required for Teams Integration**: For the Logic App to post messages to Teams channels, its managed identity must be added as a member of your Teams team.
+
+**Manual Addition Process** (Officially Supported by Microsoft):
+
+1. **Open Microsoft Teams** and navigate to your target team
+2. **Access Team Management**: Click the **⋯** (More options) next to your team name → **Manage team**
+3. **Add Member**: 
+   - Go to the **Members** tab
+   - Click **Add member**
+   - Search for your Logic App name (e.g., `ld-test-loan-agent-logicapp-817c`)
+   - Select it from the search results
+   - Click **Add** with **Member** role
+4. **Verify Addition**: Confirm your Logic App appears in the team's member list
+
+**Why Manual Addition is Required**:
+Per Microsoft's official documentation, service principals (managed identities) "can be granted access and permissions, but can't be updated or modified directly" via Microsoft Graph API. The Teams UI provides the supported method for adding managed identities to Teams groups.
+
+**Finding Your Logic App's Principal ID** (if needed for troubleshooting):
+```powershell
+az logicapp show --name "your-logic-app-name" --resource-group "your-resource-group" --query "identity.principalId" --output tsv
+```
+
+**Reference**: [Microsoft Graph API Service Principal Documentation](https://docs.microsoft.com/en-us/graph/api/resources/serviceprincipal)
+
+**Troubleshooting Teams Integration**:
+If you get `UnauthorizedSenderForChannelNotification` error:
+- Verify the Logic App appears in your Teams team member list
+- Ensure you're using the correct Teams Group ID and Channel ID
+- Try removing and re-adding the Logic App to the team
+
+#### 4.4 Generate Runtime URLs and Update Settings
+
+After authorizing connections and granting permissions, update your configuration:
+
+**Step 1: Generate Runtime URLs**
+```powershell
+cd Deployment/helpers
+.\get-connection-details.ps1 `
+    -SubscriptionId "your-subscription-id" `
+    -ResourceGroup "your-resource-group"
+```
+
+This displays the connection runtime URLs you'll need for `local.settings.json`.
+
+**Step 2: Update Local Settings**
+```powershell
+cd Deployment/helpers
+.\update-local-settings.ps1 `
+    -DemoUserEmail "your-email@company.com" `
+    -TeamsGroupId "your-teams-group-id" `
+    -TeamsChannelId "your-teams-channel-id" `
+    -FormsConnectionRuntimeUrl "https://..." `
+    -TeamsConnectionRuntimeUrl "https://..." `
+    -OutlookConnectionRuntimeUrl "https://..."
+```
+
+**Alternative**: Manually edit `LogicApps/local.settings.json` with the runtime URLs from Step 1.
 
 ### Step 5: Finalize Local Development Configuration
 
@@ -232,8 +325,10 @@ This generates the runtime URLs needed for your `local.settings.json` file.
 2. **Email Address**: Update `DemoUserEmail` with your actual email address
    - *This demo uses a hardcoded applicant email address because SAMPLE-DATA.md has placeholder addresses. Production workflows would extract the applicant's email from form data.*
 3. **Project Path**: Update `ProjectDirectoryPath` with your local LogicApps folder path
-4. **Runtime URLs**: Add the Microsoft 365 connection runtime URLs from Step 4.2
+4. **Runtime URLs**: Add the Microsoft 365 connection runtime URLs from Step 4.4
 5. **Form ID**: Update the workflow trigger in `LogicApps/LoanApprovalAgent/workflow.json` (detailed in Step 7.1)
+
+**💡 Tip**: Use the `update-local-settings.ps1` helper script (Step 4.4) to update multiple values at once instead of manual editing.
 
 **Example manual updates needed in `local.settings.json`:**
 ```json
@@ -315,7 +410,58 @@ If you need to manually configure or update the API policies:
 
 **⚠️ Important**: Both locations MUST use the exact same Form ID, or the workflow won't trigger when forms are submitted.
 
-#### 7.2 Deploy with VS Code
+#### 7.2 Map Form Field IDs to Workflow
+
+**⚠️ Critical**: Microsoft Forms assigns unique IDs to each form field. Your form's field IDs are different from the sample's hardcoded IDs in workflow.json.
+
+**Automated Solution**: Use the provided PowerShell script to automatically detect and map your form field IDs:
+
+```powershell
+cd Deployment/helpers
+.\update-form-field-mappings.ps1 `
+    -LogicAppName "your-logic-app-name" `
+    -ResourceGroup "your-resource-group"
+```
+
+**Prerequisites**:
+1. Submit at least **one test form response** first (the script needs a workflow run to extract field IDs)
+2. Ensure Azure CLI is authenticated (`az login`)
+
+**What the script does**:
+1. Fetches your latest workflow run
+2. Extracts actual form field IDs from `Get_response_details` action output
+3. Auto-detects field types using pattern matching:
+   - **SSN**: Format `XXX-XX-XXXX` or 9 digits
+   - **Salary**: Large numeric values (> $100,000)
+   - **Loan Amount**: Moderate numeric values ($10k-$100k)
+   - **Date of Birth**: Date format
+   - **Vehicle Make**: Text matching car brands (Toyota, Honda, Ford, BMW, etc.)
+   - **Name/Employer**: Remaining text fields
+4. Updates all field references in `workflow.json` with correct IDs
+5. Offers to redeploy automatically
+
+**Interactive Mode** (manual field selection if auto-detection fails):
+```powershell
+.\update-form-field-mappings.ps1 `
+    -LogicAppName "your-logic-app-name" `
+    -ResourceGroup "your-resource-group" `
+    -Interactive
+```
+
+**Required Form Fields**: Your Microsoft Form must include these fields for the workflow to work:
+
+| Field Name | Description | Example Value |
+|------------|-------------|---------------|
+| **Name** | Applicant's full name | John Smith |
+| **SSN** | Social Security Number | 123-45-6789 |
+| **Date of Birth** | Date of birth | 01/15/1985 |
+| **Employer** | Current employer name | Contoso Inc. |
+| **Years Worked** | Years at current job | 5 |
+| **Salary** | Annual salary | 75000 |
+| **Loan Amount** | Requested loan amount | 35000 |
+| **Vehicle Make** | Vehicle make/model | Toyota Camry |
+
+#### 7.3 Deploy with VS Code
 
 **Deploy workflows with VS Code**: See instructions in `LogicApps/README.md` → "Next Steps: Deploy to Azure"
 
@@ -360,16 +506,50 @@ If you need to manually configure or update the API policies:
 
 **Microsoft 365 Connection Issues**:
 - All connections initially show "Unauthenticated" - this is normal
-- Follow Step 5 to authorize each connection through Azure Portal
+- **V2 connections require TWO authentication layers**:
+  - **Layer 1 (OAuth)**: Authorize each connection through Azure Portal (Step 4.1)
+  - **Layer 2 (RBAC)**: Grant Contributor role using `grant-connection-permissions.ps1` (Step 4.2)
 - Ensure you're using a Microsoft 365 account with proper licenses
+- **Missing Layer 2 permissions cause**: "BadRequest" on webhook subscription or "Value cannot be null (Parameter 'scheme')" errors
 
 **Workflow Deployment Fails**:
 - Verify `local.settings.json` contains correct values from deployment
-- Ensure all connections are authorized before deploying workflows
+- Ensure all connections are authorized (Layer 1) AND have permissions granted (Layer 2)
 - Check VS Code Azure Logic Apps extension is properly connected
+- Verify connection runtime URLs are configured in `local.settings.json`
+
+**Workflow Parameter Not Found Errors**:
+- **Symptom**: "The workflow parameter 'FormFieldId_XXX' is not found" errors at runtime
+- **Root Cause**: Logic Apps Standard requires parameters in THREE places:
+  1. `workflow.json` - Defines parameters with types and defaults
+  2. `parameters.json` - Maps parameters to app settings using `@appsetting('ParameterName')`
+  3. Azure app settings - Contains actual values
+- **Solution**: Run `update-form-field-mappings.ps1` which updates all three locations automatically
+- **Manual fix**: Add missing parameters to `parameters.json` following the pattern:
+  ```json
+  "FormFieldId_XXX": {
+    "type": "String",
+    "value": "@appsetting('FormFieldId_XXX')"
+  }
+  ```
 
 **Form or Teams Integration Issues**:
-- **Form not triggering workflow**: Verify Form ID is correctly updated in `workflow.json` (Step 7.1)
+- **Webhook trigger not working**: 
+  - Check both Layer 1 (OAuth authorization) AND Layer 2 (RBAC permissions) are complete
+  - Run `grant-connection-permissions.ps1` if you see BadRequest errors
+  - Verify connections.json uses `"type": "ManagedServiceIdentity"` authentication
+- **Teams "UnauthorizedSenderForChannelNotification" error**:
+  - **Root cause**: Logic App's managed identity is not a member of the Teams team
+  - **Solution**: Run `grant-connection-permissions.ps1 -LogicAppName "your-logic-app" -ResourceGroup "your-rg" -TeamsGroupId "your-team-id"`
+  - **Manual alternative**: Go to Teams → Your Team → ⋯ → Manage team → Members → Add your Logic App's managed identity
+  - **Verification**: Check that your Logic App appears in the team's member list
+- **Form not triggering workflow**: 
+  - Verify Form ID is correctly updated in `workflow.json` (Step 7.1)
+  - Check webhook body format includes: eventType, notificationUrl, source fields
+  - Submit a new form to trigger webhook re-registration
+- **Application_Summary shows empty values**:
+  - This means form field IDs don't match your form
+  - Run `update-form-field-mappings.ps1` to automatically fix field mappings (Step 7.2)
 - Double-check Form ID and Teams Group/Channel IDs in `local.settings.json`
 - Test individual connections in Azure Portal before full workflow testing
 - Ensure Microsoft Forms connection is authorized and shows "Connected" status
@@ -392,6 +572,24 @@ az group delete --name "your-resource-group" --yes --no-wait
 
 ## Configuration Notes
 
+### 📋 Workflow Parameter Resolution Architecture
+
+Logic Apps Standard uses a **three-layer parameter resolution system**:
+
+1. **workflow.json** - Defines parameters with types and default values
+   - Example: `"FormFieldId_SSN": { "type": "string", "defaultValue": "rXXXXXXX..." }`
+   - Default values are fallbacks if other layers fail
+
+2. **parameters.json** - Maps workflow parameters to app settings
+   - Example: `"FormFieldId_SSN": { "type": "String", "value": "@appsetting('FormFieldId_SSN')" }`
+   - Uses `@appsetting()` expression to pull from app settings at runtime
+
+3. **Azure App Settings** - Contains actual runtime values
+   - Example: `FormFieldId_SSN = "r329d190d32cb4d5d887528004be87b85"`
+   - Values synced via Azure CLI or Azure Portal
+
+**All three layers must be configured** for parameters to resolve correctly. The `update-form-field-mappings.ps1` script handles all three automatically.
+
 ### ✅ Fully Automated (98% of setup)
 - **Azure Infrastructure**: All services provisioned and configured with managed identity
 - **Database Authentication**: Automatic Microsoft Entra ID admin setup and managed identity configuration
@@ -405,10 +603,23 @@ az group delete --name "your-resource-group" --yes --no-wait
 ### 🔧 Manual Configuration Required (2% of setup)
 Why these specific steps require manual intervention:
 - **Microsoft Forms**: No programmatic API available for form creation or import
-- **Form ID Configuration**: Must be manually updated in workflow trigger definition
+- **Form ID Configuration**: Must be manually updated in workflow trigger definition (Step 7.1)
+- **Form Field Mapping**: Each form has unique field IDs that must be mapped using `update-form-field-mappings.ps1` (Step 7.2)
+  - Script updates all three parameter resolution layers: local.settings.json, parameters.json, and Azure app settings
+  - Automatically restarts Logic App to load new settings
 - **Teams Workspace**: Interactive setup required for proper organizational permissions
-- **OAuth Connections**: Security requirement mandates explicit user consent for Microsoft 365 access (even with V2 connections)
+- **V2 Connection OAuth (Layer 1)**: Security requirement mandates explicit user consent for Microsoft 365 access through Azure Portal (Step 4.1)
+- **V2 Connection RBAC (Layer 2)**: Logic App managed identity needs Contributor role on connection resources via `grant-connection-permissions.ps1` (Step 4.2)
+- **Connection Runtime URLs**: Must be generated and added to local.settings.json after authorization (Step 4.3)
 - **Personal Identifiers**: Teams Group/Channel IDs and demo email require user-specific values
+
+### 🔐 V2 Connection Authentication Architecture
+Logic Apps Standard V2 OAuth connections use a **two-layer authentication model**:
+- **Layer 1 (Connection → API)**: OAuth token stored in connection resource - requires manual authorization in Azure Portal
+- **Layer 2 (Logic App → Connection)**: Managed identity RBAC permissions - requires `grant-connection-permissions.ps1` script
+- **Authentication Type**: connections.json must use `"type": "ManagedServiceIdentity"` (NOT "Raw") for V2 OAuth
+- **Why both layers**: Layer 1 authenticates the API calls; Layer 2 allows the Logic App to use the connection
+- **Common mistake**: Authorizing connections (Layer 1) without granting RBAC permissions (Layer 2) causes webhook failures
 
 ### 🧪 Test Data Design
 - **Safe Test Values**: Uses 555-XXX-XXXX SSNs and @example.com emails for compliance
@@ -555,12 +766,21 @@ flowchart TD
 - **`TROUBLESHOOTING.md`** - 🆕 Comprehensive troubleshooting guide for deployment issues
 
 ### Helper Scripts (Optional/Troubleshooting)
-- **`helpers/generate-runtime-urls.ps1`** - Generates connection runtime URLs for manual configuration
-  - Usage: `.\generate-runtime-urls.ps1 -SubscriptionId "your-sub-id" -ResourceGroup "your-rg"`
-- **`helpers/get-connection-details.ps1`** - Extracts Microsoft 365 connection details for troubleshooting
-  - Usage: `.\get-connection-details.ps1 -SubscriptionId "your-sub-id" -ResourceGroup "your-rg"`
-- **`helpers/update-local-settings.ps1`** - Updates local.settings.json for configuration fixes
-  - Usage: `.\update-local-settings.ps1 -DemoUserEmail "user@company.com"`
+- **`helpers/grant-connection-permissions.ps1`** - 🆕 Grants Logic App managed identity Contributor role on V2 connections
+  - **When to use**: Required for V2 webhook triggers to work (Step 4.2)
+  - **Usage**: `.\.\grant-connection-permissions.ps1 -LogicAppName "your-logic-app-name" -ResourceGroup "your-resource-group"`
+  - **Features**: Grants RBAC permissions on connection resources, verifies role assignments
+  - **Why needed**: Logic Apps Standard requires both OAuth (Layer 1) AND RBAC permissions (Layer 2) for V2 connections
+- **`helpers/update-form-field-mappings.ps1`** - 🆕 Automatically maps Microsoft Forms field IDs to workflow
+  - **When to use**: After creating your form and submitting one test response (Step 7.2)
+  - **Usage**: `.\update-form-field-mappings.ps1 -LogicAppName "your-logic-app-name" -ResourceGroup "your-resource-group"`
+  - **Features**: Auto-detection with pattern matching, updates local.settings.json AND parameters.json, pushes to Azure app settings, automatic Logic App restart, optional auto-redeploy
+- **`helpers/get-connection-details.ps1`** - Extracts connection runtime URLs and displays them for configuration
+  - **When to use**: Part of V2 connection setup (Step 4.4)
+  - **Usage**: `.\.\get-connection-details.ps1 -SubscriptionId "your-sub-id" -ResourceGroup "your-rg"`
+- **`helpers/update-local-settings.ps1`** - Updates local.settings.json with all configuration values
+  - **When to use**: Part of V2 connection setup (Step 4.4)
+  - **Usage**: `.\.\update-local-settings.ps1 -DemoUserEmail "user@company.com" -TeamsGroupId "..." -TeamsChannelId "..."`
 
 ### Configuration Files
 - **`policies/`** - Contains XML policy templates for APIM mock responses

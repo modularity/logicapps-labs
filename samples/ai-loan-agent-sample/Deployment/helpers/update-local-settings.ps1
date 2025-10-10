@@ -71,13 +71,65 @@ if (-not $policyUrl) {
     exit 1
 }
 
-# Update the outlook-1-ConnectionRuntimeUrl to point to the policy document
-if ($localSettings.Values | Get-Member -Name 'outlook-1-ConnectionRuntimeUrl' -MemberType NoteProperty) {
-    $localSettings.Values.'outlook-1-ConnectionRuntimeUrl' = $policyUrl
-} else {
-    $localSettings.Values | Add-Member -MemberType NoteProperty -Name 'outlook-1-ConnectionRuntimeUrl' -Value $policyUrl
+# Get the correct connection runtime URLs from Azure
+Write-Info "Retrieving correct connection runtime URLs from Azure..."
+
+# Get the resource group name from the settings if available
+$resourceGroup = $null
+if ($localSettings.Values | Get-Member -Name 'WORKFLOWS_RESOURCE_GROUP_NAME' -MemberType NoteProperty) {
+    $resourceGroup = $localSettings.Values.'WORKFLOWS_RESOURCE_GROUP_NAME'
 }
-Write-Status "Updated outlook-1-ConnectionRuntimeUrl to policy document"
+
+if ($resourceGroup) {
+    Write-Info "Using resource group: $resourceGroup"
+    
+    # Get actual connection runtime URLs from Azure
+    try {
+        $outlookRuntimeUrl = az resource show --resource-group $resourceGroup --resource-type "Microsoft.Web/connections" --name "outlookConnection" --query "properties.connectionRuntimeUrl" --output tsv 2>$null
+        $formsRuntimeUrl = az resource show --resource-group $resourceGroup --resource-type "Microsoft.Web/connections" --name "formsConnection" --query "properties.connectionRuntimeUrl" --output tsv 2>$null
+        $teamsRuntimeUrl = az resource show --resource-group $resourceGroup --resource-type "Microsoft.Web/connections" --name "teamsConnection" --query "properties.connectionRuntimeUrl" --output tsv 2>$null
+        
+        # Update connection runtime URLs with correct values
+        if ($outlookRuntimeUrl) {
+            if ($localSettings.Values | Get-Member -Name 'outlookConnection-ConnectionRuntimeUrl' -MemberType NoteProperty) {
+                $localSettings.Values.'outlookConnection-ConnectionRuntimeUrl' = $outlookRuntimeUrl
+            } else {
+                $localSettings.Values | Add-Member -MemberType NoteProperty -Name 'outlookConnection-ConnectionRuntimeUrl' -Value $outlookRuntimeUrl
+            }
+            Write-Status "Updated outlookConnection-ConnectionRuntimeUrl to actual Azure API Hub URL"
+        }
+        
+        if ($formsRuntimeUrl) {
+            if ($localSettings.Values | Get-Member -Name 'formsConnection-ConnectionRuntimeUrl' -MemberType NoteProperty) {
+                $localSettings.Values.'formsConnection-ConnectionRuntimeUrl' = $formsRuntimeUrl
+            } else {
+                $localSettings.Values | Add-Member -MemberType NoteProperty -Name 'formsConnection-ConnectionRuntimeUrl' -Value $formsRuntimeUrl
+            }
+            Write-Status "Updated formsConnection-ConnectionRuntimeUrl to actual Azure API Hub URL"
+        }
+        
+        if ($teamsRuntimeUrl) {
+            if ($localSettings.Values | Get-Member -Name 'teamsConnection-ConnectionRuntimeUrl' -MemberType NoteProperty) {
+                $localSettings.Values.'teamsConnection-ConnectionRuntimeUrl' = $teamsRuntimeUrl
+            } else {
+                $localSettings.Values | Add-Member -MemberType NoteProperty -Name 'teamsConnection-ConnectionRuntimeUrl' -Value $teamsRuntimeUrl
+            }
+            Write-Status "Updated teamsConnection-ConnectionRuntimeUrl to actual Azure API Hub URL"
+        }
+        
+    } catch {
+        Write-Warning "Could not retrieve connection runtime URLs from Azure: $($_.Exception.Message)"
+        Write-Info "You may need to run generate-runtime-urls.ps1 manually to get the correct URLs"
+    }
+} else {
+    Write-Warning "Resource group not found in settings. Cannot retrieve connection runtime URLs automatically."
+}
+
+# Remove the incorrect outlook-1-ConnectionRuntimeUrl if it exists
+if ($localSettings.Values | Get-Member -Name 'outlook-1-ConnectionRuntimeUrl' -MemberType NoteProperty) {
+    $localSettings.Values.PSObject.Properties.Remove('outlook-1-ConnectionRuntimeUrl')
+    Write-Status "Removed incorrect outlook-1-ConnectionRuntimeUrl property"
+}
 
 # Configure SQL connection string for managed identity authentication
 Write-Info "Configuring SQL connection string for managed identity..."
