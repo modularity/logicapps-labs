@@ -497,8 +497,8 @@ foreach ($api in $apis) {
         # This provides realistic scenario diversity for testing
         $correctedPolicy = $api.mockPolicy
         
-        # Create temporary policy file with proper encoding to avoid UTF-8 BOM issues
-        $policyFile = "temp-policy-$($api.id).xml"
+        # Create temporary policy file in system temp directory with proper encoding
+        $policyFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "temp-policy-$($api.id)-$(Get-Random).xml")
         [System.IO.File]::WriteAllText($policyFile, $correctedPolicy, [System.Text.UTF8Encoding]::new($false))
         
         # Use Azure CLI REST API with direct XML upload (PROVEN WORKING METHOD)
@@ -517,11 +517,7 @@ foreach ($api in $apis) {
             if ($result) {
                 Write-Info "Error details: $($result -join ' ')"
             }
-            
-            # Create policy file for manual application if needed
-            $manualPolicyFile = "policies/policy-$($api.id).xml" 
-            $correctedPolicy | Out-File -FilePath $manualPolicyFile -Encoding UTF8 -NoNewline
-            Write-Info "📋 Policy file created for manual application: $manualPolicyFile"
+            Write-Warning "Policy could not be applied via REST API - manual application may be required"
         }
         
         # Clean up temporary file
@@ -529,11 +525,7 @@ foreach ($api in $apis) {
     }
     catch {
         Write-Warning "Error applying policy for $($api.name): $($_.Exception.Message)"
-        
-        # Create policy file as fallback
-        $policyFile = "policies/policy-$($api.id).xml"
-        $api.mockPolicy | Out-File -FilePath $policyFile -Encoding UTF8 -NoNewline
-        Write-Info "📋 Policy file created for manual application: $policyFile"
+        Write-Warning "Policy could not be applied - manual configuration may be required"
     }
 }
 

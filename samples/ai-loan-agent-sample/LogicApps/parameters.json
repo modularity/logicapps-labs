@@ -7,37 +7,13 @@
     "type": "String",
     "value": "@appsetting('formsConnection-ConnectionRuntimeUrl')"
   },
-  "formsConnection-Authentication": {
-    "type": "Object",
-    "value": {
-      "type": "Raw",
-      "scheme": "Key",
-      "parameter": "@appsetting('formsConnection-connectionKey')"
-    }
-  },
   "teamsConnection-ConnectionRuntimeUrl": {
     "type": "String",
     "value": "@appsetting('teamsConnection-ConnectionRuntimeUrl')"
   },
-  "teamsConnection-Authentication": {
-    "type": "Object",
-    "value": {
-      "type": "Raw",
-      "scheme": "Key",
-      "parameter": "@appsetting('teamsConnection-connectionKey')"
-    }
-  },
   "outlookConnection-ConnectionRuntimeUrl": {
     "type": "String",
     "value": "@appsetting('outlookConnection-ConnectionRuntimeUrl')"
-  },
-  "outlookConnection-Authentication": {
-    "type": "Object",
-    "value": {
-      "type": "Raw",
-      "scheme": "Key",
-      "parameter": "@appsetting('outlookConnection-connectionKey')"
-    }
   },
   "PolicyDocumentURL": {
     "type": "String",

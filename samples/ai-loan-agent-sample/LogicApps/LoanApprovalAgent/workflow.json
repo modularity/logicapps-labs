@@ -75,7 +75,7 @@
                                 "inputs": {
                                     "apiManagement": {
                                         "operationId": "riskassessment",
-                                        "connection": "apiManagementOperation"
+                                        "connection": "riskAssessmentAPI"
                                     },
                                     "method": "post",
                                     "pathTemplate": {
@@ -96,7 +96,7 @@
                                 "inputs": {
                                     "host": {
                                         "workflow": {
-                                            "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/sites/ai-loan-agent-logicapp/workflows/SpecialVehicles"
+                                            "id": "SpecialVehicles"
                                         }
                                     }
                                 }
@@ -111,7 +111,7 @@
                                 "inputs": {
                                     "host": {
                                         "connection": {
-                                            "referenceName": "office365"
+                                            "referenceName": "outlookConnection"
                                         }
                                     },
                                     "method": "post",
@@ -151,7 +151,7 @@
                                 "inputs": {
                                     "host": {
                                         "connection": {
-                                            "referenceName": "teams-1"
+                                            "referenceName": "teamsConnection"
                                         }
                                     },
                                     "body": {
@@ -208,11 +208,11 @@
                 "inputs": {
                     "host": {
                         "connection": {
-                            "referenceName": "microsoftforms-2"
+                            "referenceName": "formsConnection"
                         }
                     },
                     "method": "get",
-                    "path": "/formapi/api/forms('@{encodeURIComponent('v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WDBINVRGVFRSWUUxUlJHWktTODU1Sy4u')}')/responses",
+                    "path": "/formapi/api/forms('@{encodeURIComponent('PUT_YOUR_FORM_ID_HERE')}')/responses",
                     "queries": {
                         "response_id": "@triggerBody()?['resourceData']?['responseId']"
                     }
@@ -224,7 +224,7 @@
                 "inputs": {
                     "apiManagement": {
                         "operationId": "veryifyemployment",
-                        "connection": "apiManagementOperation-1"
+                        "connection": "employmentValidationAPI"
                     },
                     "method": "post",
                     "pathTemplate": {
@@ -247,7 +247,7 @@
                 "inputs": {
                     "apiManagement": {
                         "operationId": "checkcredit",
-                        "connection": "apiManagementOperation-2"
+                        "connection": "creditCheckAPI"
                     },
                     "method": "post",
                     "pathTemplate": {
@@ -270,7 +270,7 @@
                 "inputs": {
                     "apiManagement": {
                         "operationId": "demographics",
-                        "connection": "apiManagementOperation-3"
+                        "connection": "demographicVerificationAPI"
                     },
                     "method": "post",
                     "pathTemplate": {
@@ -315,7 +315,7 @@
                 "inputs": {
                     "host": {
                         "workflow": {
-                            "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/sites/ai-loan-agent-logicapp/workflows/LoanPostProcessing"
+                            "id": "LoanPostProcessing"
                         }
                     },
                     "body": "@outputs('Loan_Agent')?['lastAssistantMessage']"
@@ -346,19 +346,20 @@
         },
         "triggers": {
             "When_a_new_response_is_submitted": {
-                "type": "ApiConnectionWebhook",
+                "type": "ApiConnection",
+                "description": "Triggers on Microsoft Forms submission",
                 "inputs": {
                     "host": {
                         "connection": {
-                            "referenceName": "microsoftforms-2"
+                            "referenceName": "formsConnection"
                         }
                     },
-                    "body": {
-                        "eventType": "responseAdded",
-                        "notificationUrl": "@listCallbackUrl()",
-                        "source": "ms-connector"
-                    },
-                    "path": "/formapi/api/forms/@{encodeURIComponent('v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOVY2WDBINVRGVFRSWUUxUlJHWktTODU1Sy4u')}/webhooks"
+                    "method": "get",
+                    "path": "/formapi/api/forms('@{encodeURIComponent('PUT_YOUR_FORM_ID_HERE')}')/responses"
+                },
+                "recurrence": {
+                    "frequency": "Minute",
+                    "interval": 3
                 },
                 "splitOn": "@triggerBody()?['value']"
             }

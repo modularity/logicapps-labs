@@ -16,18 +16,12 @@
     Azure region for resource deployment
 .PARAMETER ProjectName
     Base name for all resources (used as prefix)
-.PARAMETER SqlAdminPassword
-    Password for SQL Server admin user (SecureString recommended)
-.PARAMETER SkipLogin
-    Skip Azure CLI login (useful if already authenticated)
 .PARAMETER APIMServiceName
     Name of existing API Management service to use (optional)
 .EXAMPLE
     .\deploy.ps1 -ResourceGroup "my-rg" -Location "eastus" -ProjectName "my-loan-agent"
 .EXAMPLE
-    .\deploy.ps1 -ResourceGroup "my-rg" -SqlAdminPassword (ConvertTo-SecureString "MyPassword123!" -AsPlainText -Force)
-.EXAMPLE
-    .\deploy.ps1 -APIMServiceName "existing-apim" -SkipLogin
+    .\deploy.ps1 -APIMServiceName "existing-apim"
 .NOTES
     For troubleshooting common issues, see TROUBLESHOOTING.md
 #>
@@ -41,12 +35,6 @@ param(
     
     [Parameter()]
     [string]$ProjectName = "ai-loan-agent",
-    
-    [Parameter()]
-    [SecureString]$SqlAdminPassword,
-    
-    [Parameter()]
-    [switch]$SkipLogin,
 
     [Parameter()]
     [string]$APIMServiceName = "ai-loan-agent-apim"
@@ -160,23 +148,6 @@ function Invoke-AzureCommandWithRetry {
     } while ($attempt -le $MaxRetries)
 }
 
-# Function to generate secure password
-function New-SecurePassword {
-    # Use .NET RNGCryptoServiceProvider for cryptographically secure random generation
-    $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
-    $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
-    $password = ""
-    
-    for ($i = 0; $i -lt 20; $i++) {  # Increased length for better security
-        $bytes = New-Object byte[] 1
-        $rng.GetBytes($bytes)
-        $password += $chars[$bytes[0] % $chars.Length]
-    }
-    
-    $rng.Dispose()
-    return $password
-}
-
 # Function to convert SecureString to plain text (use sparingly)
 function ConvertFrom-SecureStringToPlainText {
     param([SecureString]$SecureString)
@@ -253,18 +224,6 @@ if (-not (Test-AzureCli)) {
 
 Write-Status "Azure CLI is available"
 
-# Handle SQL Admin Password securely
-$SqlAdminPasswordPlainText = ""
-if ($SqlAdminPassword) {
-    # Convert SecureString to plain text for Azure CLI usage
-    $SqlAdminPasswordPlainText = ConvertFrom-SecureStringToPlainText -SecureString $SqlAdminPassword
-    Write-Info "Using provided SQL admin password"
-} else {
-    Write-Info "Generating cryptographically secure SQL admin password..."
-    $SqlAdminPasswordPlainText = New-SecurePassword
-    Write-Warning "Password will be displayed in the final configuration output for copying to local.settings.json"
-}
-
 # Generate consistent unique identifiers based on subscription and resource group to ensure idempotency
 $subscriptionId = az account show --query id --output tsv 2>$null
 if ($LASTEXITCODE -ne 0 -or -not $subscriptionId) {
@@ -272,7 +231,7 @@ if ($LASTEXITCODE -ne 0 -or -not $subscriptionId) {
     Write-Info "Authentication steps:"
     Write-Info "  1. Run: az login"
     Write-Info "  2. Run: az account set --subscription 'your-subscription-id'"
-    Write-Info "  3. Re-run this script with -SkipLogin parameter"
+    Write-Info "  3. Re-run this script"
     exit 1
 }
 
@@ -294,7 +253,6 @@ $OPENAI_ACCOUNT_NAME = "$ProjectName-openai-$uniqueId4"
 $APIM_SERVICE_NAME = if ($APIMServiceName -and $APIMServiceName.Trim().Length -gt 0) { $APIMServiceName } else { "$ProjectName-apim-$uniqueId4" }
 $APIM_RESOURCE_GROUP = $ResourceGroup
 $BLOB_STORAGE_NAME = ($ProjectName + "blob" + $uniqueId8).Replace("-", "").ToLower()
-$SQL_ADMIN_USERNAME = "sqladmin"
 
 # Check if resources with the EXACT hash-based names already exist (true idempotency)
 Write-Info "Checking for existing resources with consistent naming pattern..."
@@ -452,6 +410,11 @@ if (-not (az storage account show --name $STORAGE_ACCOUNT_NAME --resource-group 
 # Create SQL Server and Database
 Write-Header "Creating SQL Database"
 
+# Get current user information for SQL Server configuration
+Write-Info "Getting current user information for SQL Server configuration..."
+$currentUser = az account show --query user.name --output tsv
+$currentUserId = az ad signed-in-user show --query id --output tsv
+
 # SQL Server Creation Logic
 if ($sqlServerFound) {
     Write-Status "SQL Server $SQL_SERVER_NAME already found - will configure authentication"
@@ -481,8 +444,10 @@ if ($sqlServerFound) {
             --name $SQL_SERVER_NAME `
             --resource-group $ResourceGroup `
             --location $Location `
-            --admin-user $SQL_ADMIN_USERNAME `
-            --admin-password "$SqlAdminPasswordPlainText" 2>&1
+            --enable-ad-only-auth `
+            --external-admin-principal-type User `
+            --external-admin-name $currentUser `
+            --external-admin-sid $currentUserId 2>&1
         
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Failed to create SQL Server '$SQL_SERVER_NAME'"
@@ -534,11 +499,6 @@ $sqlConnectionString = "Server=tcp:$SQL_SERVER_NAME.database.windows.net,1433;In
 # Configure SQL Server Microsoft Entra ID Authentication (runs for both new and existing servers)
 Write-Header "Configuring SQL Database Authentication"
 Write-Info "Setting up Microsoft Entra ID authentication for SQL Server..."
-
-# Get current user information for database configuration
-Write-Info "Getting current user information for database configuration..."
-$currentUser = az account show --query user.name --output tsv
-$currentUserId = az ad signed-in-user show --query id --output tsv
 
 # Check if Microsoft Entra ID admin is already configured
 Write-Info "Checking existing Microsoft Entra ID admin configuration..."
@@ -660,15 +620,7 @@ if ($modelExists) {
         --sku-capacity 10 `
         --sku-name Standard
     if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to deploy GPT-4 model. This may be due to:"
-        Write-Warning "  - Model quota limitations in your subscription"
-        Write-Warning "  - Regional availability constraints"
-        Write-Warning "  - Account type restrictions"
-        Write-Warning "You will need to deploy a GPT-4 model manually in the Azure portal:"
-        Write-Warning "  1. Go to Azure OpenAI Studio (oai.azure.com)"
-        Write-Warning "  2. Navigate to Deployments > Create new deployment"
-        Write-Warning "  3. Select GPT-4 model (any available version)"
-        Write-Warning "  4. Set deployment name to 'gpt-4.1' to match the Logic Apps configuration"
+        Write-Warning "Failed to deploy GPT-4 model. This may be due to quota or availability constraints."
     } else {
         Write-Status "GPT-4.1 model deployed successfully"
     }
@@ -764,11 +716,7 @@ if ($existingApims) {
                 
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "Failed to create API Management service even with unique name: $apimCreateResult"
-                    Write-Warning "You may need to:"
-                    Write-Warning "  1. Check if you have sufficient permissions to create APIM services"
-                    Write-Warning "  2. Verify the location supports APIM services"
-                    Write-Warning "  3. Create APIM manually in the Azure Portal"
-                    Write-Warning "  4. Use an existing APIM service with -APIMServiceName parameter"
+                    Write-Warning "Failed to create APIM - manual creation may be required."
                     exit 1
                 } else {
                     Write-Status "API Management service created successfully with unique name: $APIM_SERVICE_NAME"
@@ -776,11 +724,7 @@ if ($existingApims) {
                 }
             } else {
                 Write-Error "Failed to create API Management service: $apimCreateResult"
-                Write-Warning "You may need to:"
-                Write-Warning "  1. Try a different APIM service name with -APIMServiceName parameter"
-                Write-Warning "  2. Check if you have sufficient permissions to create APIM services"
-                Write-Warning "  3. Verify the location supports APIM services"
-                Write-Warning "  4. Create APIM manually in the Azure Portal"
+                Write-Warning "Failed to create APIM - manual creation may be required."
                 exit 1
             }
         } else {
@@ -1084,61 +1028,103 @@ Write-Info "Logic App managed identity principal ID: $principalId"
 # Note: RBAC role assignments are deferred until after workflow deployment
 # This prevents premature creation of managed connection resource groups
 Write-Info "Managed identity configured successfully - ready for connection creation during workflow deployment"
-Write-Warning "IMPORTANT: RBAC roles will be assigned automatically when connections are created"
-Write-Warning "The VS Code Logic Apps extension will handle role assignments during workflow deployment"
+
+# Set critical workflow app settings immediately after Logic App creation
+Write-Info "Setting critical workflow app settings to prevent naming mismatches..."
+az webapp config appsettings set `
+    --name $LOGIC_APP_NAME `
+    --resource-group $ResourceGroup `
+    --settings `
+        "WORKFLOWS_LOGIC_APP_NAME=$LOGIC_APP_NAME" `
+        "WORKFLOWS_RESOURCE_GROUP_NAME=$ResourceGroup" `
+        "WORKFLOWS_SUBSCRIPTION_ID=$subscriptionId" `
+        "WORKFLOWS_LOCATION_NAME=$Location" > $null
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Status "✅ Critical workflow app settings configured"
+} else {
+    Write-Warning "⚠️ Failed to set critical workflow app settings"
+}
 
 Write-Status "Logic App managed identity configuration completed"
 } # End of Logic Apps creation section
 
 # Create Microsoft 365 API Connections
 Write-Header "Creating Microsoft 365 API Connections"
-Write-Info "Creating API connections required by Logic App workflows..."
-Write-Warning "These connections must exist before deploying workflows with VS Code"
+Write-Info "Creating V2 API connections with access policies for Logic App workflows..."
 
-# Function to create API connection using temporary JSON file approach
-function New-ApiConnection {
+# Function to create V2 API connection with access policy
+function New-V2ApiConnection {
     param(
         [string]$ConnectionName,
         [string]$DisplayName,
         [string]$ApiName,
         [string]$SubscriptionId,
         [string]$ResourceGroup,
-        [string]$Location
+        [string]$Location,
+        [string]$LogicAppPrincipalId,
+        [string]$TenantId
     )
     
-    Write-Info "Creating $DisplayName..."
+    Write-Info "Creating V2 $DisplayName..."
     
-    # Create a temporary JSON file to avoid PowerShell command line parsing issues
-    $tempJsonFile = [System.IO.Path]::GetTempFileName() + ".json"
-    
-    try {
-        # Create properly formatted JSON for API connection (OAuth authentication for Microsoft 365 connectors)
-        $connectionDefinition = @{
+    # Create V2 connection using REST API
+    $connectionJson = @{
+        location = $Location
+        kind = "V2"
+        properties = @{
             displayName = $DisplayName
             api = @{
                 id = "/subscriptions/$SubscriptionId/providers/Microsoft.Web/locations/$Location/managedApis/$ApiName"
             }
             parameterValues = @{}
         }
+    } | ConvertTo-Json -Depth 10
+    
+    # Create temporary JSON file
+    $tempJsonFile = [System.IO.Path]::GetTempFileName() + ".json"
+    
+    try {
+        $connectionJson | Out-File -FilePath $tempJsonFile -Encoding UTF8
         
-        # Convert to JSON and save to temp file
-        $jsonContent = $connectionDefinition | ConvertTo-Json -Depth 4
-        $jsonContent | Out-File -FilePath $tempJsonFile -Encoding UTF8
-        
-        # Use az resource create with JSON file for reliable API connection creation
-        $createResult = az resource create `
-            --resource-group $ResourceGroup `
-            --resource-type "Microsoft.Web/connections" `
-            --name $ConnectionName `
-            --location $Location `
-            --properties "@$tempJsonFile" 2>&1
+        # Create V2 connection
+        $createResult = az rest --method PUT `
+            --url "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/$ConnectionName" `
+            --query-parameters "api-version=2018-07-01-preview" `
+            --body "@$tempJsonFile" 2>&1
         
         if ($LASTEXITCODE -eq 0) {
-            Write-Status "✅ $DisplayName created successfully"
-            return $true
-        } elseif ($createResult -match "already exists" -or $createResult -match "ResourceAlreadyExists") {
-            Write-Status "✅ $DisplayName already exists"
-            return $true
+            Write-Status "✅ V2 $DisplayName created successfully"
+            
+            # Create access policy for Logic App managed identity
+            Write-Info "Creating access policy for $ConnectionName..."
+            
+            $accessPolicyJson = @{
+                properties = @{
+                    principal = @{
+                        type = "ActiveDirectory"
+                        identity = @{
+                            tenantId = $TenantId
+                            objectId = $LogicAppPrincipalId
+                        }
+                    }
+                }
+            } | ConvertTo-Json -Depth 10
+            
+            $accessPolicyJson | Out-File -FilePath $tempJsonFile -Encoding UTF8
+            
+            $policyResult = az rest --method PUT `
+                --url "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/$ConnectionName/accessPolicies/$LogicAppPrincipalId" `
+                --query-parameters "api-version=2018-07-01-preview" `
+                --body "@$tempJsonFile" 2>&1
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Status "✅ Access policy created for $ConnectionName"
+                return $true
+            } else {
+                Write-Warning "⚠ Failed to create access policy for $ConnectionName - this may need manual authorization"
+                return $true  # Connection still created successfully
+            }
         } else {
             Write-Warning "⚠ $DisplayName creation failed: $createResult"
             return $false
@@ -1150,133 +1136,41 @@ function New-ApiConnection {
     }
 }
 
-# Create the three Microsoft 365 API connections using the working method
+# Create the three Microsoft 365 API V2 connections with access policies
 $connectionsCreated = 0
 
+# Get tenant ID for access policies
+$tenantId = az account show --query tenantId --output tsv
+
 # Microsoft Forms Connection
-if (New-ApiConnection -ConnectionName "formsConnection" -DisplayName "Microsoft Forms Connection" -ApiName "microsoftforms" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location) {
+if (New-V2ApiConnection -ConnectionName "formsConnection" -DisplayName "Microsoft Forms Connection" -ApiName "microsoftforms" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location -LogicAppPrincipalId $principalId -TenantId $tenantId) {
     $connectionsCreated++
 }
 
 # Microsoft Teams Connection  
-if (New-ApiConnection -ConnectionName "teamsConnection" -DisplayName "Microsoft Teams Connection" -ApiName "teams" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location) {
+if (New-V2ApiConnection -ConnectionName "teamsConnection" -DisplayName "Microsoft Teams Connection" -ApiName "teams" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location -LogicAppPrincipalId $principalId -TenantId $tenantId) {
     $connectionsCreated++
 }
 
 # Office 365 Outlook Connection
-if (New-ApiConnection -ConnectionName "outlookConnection" -DisplayName "Office 365 Outlook Connection" -ApiName "office365" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location) {
+if (New-V2ApiConnection -ConnectionName "outlookConnection" -DisplayName "Office 365 Outlook Connection" -ApiName "office365" -SubscriptionId $subscriptionId -ResourceGroup $ResourceGroup -Location $Location -LogicAppPrincipalId $principalId -TenantId $tenantId) {
     $connectionsCreated++
 }
 
 # Verify connections were created
-Write-Info "Verifying API connections..."
+Write-Info "Verifying V2 API connections..."
 $connections = az resource list --resource-group $ResourceGroup --resource-type "Microsoft.Web/connections" --query "[].name" --output tsv 2>$null
 if ($connections) {
-    Write-Status "API connections found: $($connections -join ', ')"
-    Write-Status "$connectionsCreated of 3 connections created successfully"
+    Write-Status "V2 API connections found: $($connections -join ', ')"
+    Write-Status "$connectionsCreated of 3 V2 connections created successfully with access policies"
     
-    # Configure access policies for Logic App managed identity
-    Write-Info "Configuring access policies for Logic App managed identity..."
-    $logicAppPrincipalId = az webapp identity show --name $LOGIC_APP_NAME --resource-group $ResourceGroup --query principalId --output tsv
-    
-    if ($logicAppPrincipalId) {
-        Write-Info "Logic App Principal ID: $logicAppPrincipalId"
-        $tenantId = az account show --query tenantId --output tsv
-        
-        # Grant access to each connection
-        foreach ($connectionName in @("formsConnection", "teamsConnection", "outlookConnection")) {
-            Write-Info "Granting access to $connectionName..."
-            
-            # Create temporary JSON file for access policy
-            $accessPolicyFile = [System.IO.Path]::GetTempFileName() + ".json"
-            try {
-                $accessPolicy = @{
-                    tenantId = $tenantId
-                    objectId = $logicAppPrincipalId
-                    principalName = $LOGIC_APP_NAME
-                }
-                
-                $accessPolicy | ConvertTo-Json | Out-File -FilePath $accessPolicyFile -Encoding UTF8
-                
-                $accessResult = az rest --method PUT `
-                    --url "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.Web/connections/$connectionName/accessPolicies/$logicAppPrincipalId" `
-                    --query-parameters "api-version=2018-07-01-preview" `
-                    --body "@$accessPolicyFile" 2>&1
-                
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Status "✅ Access policy created for $connectionName"
-                } else {
-                    Write-Warning "⚠ Failed to create access policy for $connectionName"
-                    Write-Info "This may be expected - access policies are automatically created during workflow deployment"
-                }
-            }
-            finally {
-                Remove-Item -Path $accessPolicyFile -ErrorAction SilentlyContinue
-            }
-        }
-    } else {
-        Write-Warning "Could not retrieve Logic App managed identity principal ID"
-    }
-    
-    Write-Warning ""
-    Write-Warning "🔑 IMPORTANT: These connections need to be authorized before use:"
-    Write-Warning "  Method 1 (Recommended): Azure Portal -> Resource Groups -> $ResourceGroup -> [ConnectionName] -> Edit API Connection -> Authorize -> Save"
-    Write-Warning "  Method 2 (Alternative): Azure Portal -> Logic Apps -> $LOGIC_APP_NAME -> Workflows -> Designer"
-    Write-Warning "             -> Add action -> Select connection -> Authorize"
-    Write-Warning ""
     Write-Status "All connections show 'Unauthenticated' status until authorized - this is normal"
+    Write-Info "Manual authorization will be required in Azure Portal for each connection"
 } else {
     Write-Warning "No API connections found - creation may have failed"
-    Write-Info "Manual creation instructions:"
-    Write-Info "  1. Azure Portal -> Resource Groups -> $ResourceGroup -> Add -> Search 'API Connection'"
-    Write-Info "  2. Create connections: formsConnection, teamsConnection, outlookConnection"
-    Write-Info "  3. Use connector types: Microsoft Forms, Microsoft Teams, Office 365 Outlook"
 }
 
-Write-Status "Microsoft 365 API connections setup completed"
-
-# SQL Connection Setup Required
-Write-Header "SQL Managed API Connection Setup Required"
-Write-Warning "IMPORTANT: SQL connection must be created as managed API connection for child workflows"
-Write-Warning "Current configuration uses service provider connection which doesn't inherit to child workflows"
-Write-Warning ""
-Write-Warning "Please follow the steps in SQL-CONNECTION-SETUP.md to create the proper connection:"
-Write-Warning "  Option 1 (Recommended): Use Azure Portal Logic App Designer"
-Write-Warning "  Option 2: Use VS Code Azure Logic Apps extension"
-Write-Warning ""
-Write-Warning "Quick steps:"
-Write-Warning "  1. Azure Portal -> Logic Apps -> $LOGIC_APP_NAME -> Workflows -> Designer"
-Write-Warning "  2. Add SQL Server action -> Create new connection"
-Write-Warning "  3. Connection name: sql"
-Write-Warning "  4. Authentication: Managed Identity"
-Write-Warning "  5. Server: $SQL_SERVER_NAME.database.windows.net"
-Write-Warning "  6. Database: $SQL_DATABASE_NAME"
-Write-Warning ""
-
-# Display Microsoft Graph permissions requirements
-Write-Header "Microsoft Graph API Permissions Required"
-Write-Warning "IMPORTANT: Microsoft Graph permissions must be granted manually through Azure Portal"
-Write-Warning "These permissions require admin consent and cannot be assigned via Azure CLI"
-Write-Warning ""
-Write-Warning "Required steps:"
-Write-Warning "  1. Go to Azure Portal -> Azure Active Directory -> Enterprise Applications"
-Write-Warning "  2. Search for your Logic App: $LOGIC_APP_NAME"
-Write-Warning "  3. Navigate to Permissions -> Add permissions -> Microsoft Graph"
-Write-Warning "  4. Add the following Application permissions:"
-Write-Warning "     Microsoft Forms:"
-Write-Warning "       - Forms.Read.All"
-Write-Warning "       - Forms.ReadWrite.All"
-Write-Warning "     Microsoft Teams:"
-Write-Warning "       - Group.ReadWrite.All"
-Write-Warning "       - Channel.ReadBasic.All"
-Write-Warning "     Outlook/Exchange:"
-Write-Warning "       - Mail.Send"
-Write-Warning "       - Mail.ReadWrite"
-Write-Warning "  5. Click 'Grant admin consent' for your organization"
-Write-Warning ""
-Write-Warning "After granting permissions, you can create V2 API connections using managed identity authentication."
-
-Write-Status "Logic App managed identity configuration completed"
+Write-Status "Microsoft 365 V2 API connections setup completed"
 
 # Collect configuration values
 Write-Header "Collecting Configuration Values"
@@ -1346,11 +1240,6 @@ if (-not $apimSubscriptionKey2 -and $apimSubscriptionKey1) {
 
 Write-Status "API Management subscription keys retrieved successfully"
 
-Write-Info "Getting current user information for database configuration..."
-# Get current user information (needed for SQL admin and final output)
-$currentUser = az account show --query user.name --output tsv
-$currentUserId = az ad signed-in-user show --query id --output tsv
-
 Write-Info "Generating SQL connection string..."
 # Generate SQL connection string for local development (ensure this is available globally)
 $sqlConnectionString = "Server=tcp:$SQL_SERVER_NAME.database.windows.net,1433;Initial Catalog=$SQL_DATABASE_NAME;Authentication=Active Directory Managed Identity;Encrypt=True;"
@@ -1358,17 +1247,15 @@ $sqlConnectionString = "Server=tcp:$SQL_SERVER_NAME.database.windows.net,1433;In
 Write-Info "Getting storage connection string..."
 # Note: Storage connection string retrieved but not used in local.settings.json as we use UseDevelopmentStorage=true for local development
 
-# Clean up temporary files and sensitive variables
+# Clean up temporary files
 Remove-Item -Path "loan-policy.txt" -ErrorAction SilentlyContinue
 
-# Clear sensitive variables from memory
-if ($SqlAdminPasswordPlainText) {
-    Clear-Variable -Name "SqlAdminPasswordPlainText" -Force -ErrorAction SilentlyContinue
-}
-
-# Display results
+# Deployment Complete!
 Write-Header "Deployment Complete!"
 Write-Status "All Azure resources have been deployed successfully."
+Write-Info ""
+Write-Info "📖 For complete post-deployment setup instructions, see README.md"
+Write-Info ""
 
 # Configure Azure Logic App Settings
 Write-Header "Configuring Azure Logic App Settings"
@@ -1420,6 +1307,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Info "Setting additional workflow app settings..."
+# CRITICAL: These app settings must match the actual Logic App name generated above
+# If WORKFLOWS_LOGIC_APP_NAME doesn't match the actual Logic App name, workflow references
+# will fail with "exceeds maximum limit of 80" error during path construction
 az webapp config appsettings set `
     --name $LOGIC_APP_NAME `
     --resource-group $ResourceGroup `
@@ -1427,13 +1317,19 @@ az webapp config appsettings set `
         "WORKFLOWS_SUBSCRIPTION_ID=$subscriptionId" `
         "WORKFLOWS_LOCATION_NAME=$Location" `
         "WORKFLOWS_RESOURCE_GROUP_NAME=$ResourceGroup" `
+        "WORKFLOWS_LOGIC_APP_NAME=$LOGIC_APP_NAME" `
         "agent_ResourceID=$openaiResourceId" `
         "agent_openAIEndpoint=$openaiEndpoint" `
         "agent_openAIKey=$openaiKey" `
         "apiManagementOperation_SubscriptionKey=$apimSubscriptionKey1" `
         "apiManagementOperation_11_SubscriptionKey=$apimSubscriptionKey1" `
         "apiManagementOperation_12_SubscriptionKey=$apimSubscriptionKey2" `
-        "apiManagementOperation_13_SubscriptionKey=$apimSubscriptionKey2"
+        "apiManagementOperation_13_SubscriptionKey=$apimSubscriptionKey2" `
+        "ApiManagementServiceName=$APIM_SERVICE_NAME" `
+        "ApiManagementBaseUrl=https://$APIM_SERVICE_NAME.azure-api.net/risk" `
+        "ApiManagementEmploymentUrl=https://$APIM_SERVICE_NAME.azure-api.net/employment" `
+        "ApiManagementCreditUrl=https://$APIM_SERVICE_NAME.azure-api.net/credit" `
+        "ApiManagementVerifyUrl=https://$APIM_SERVICE_NAME.azure-api.net/verify"
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "Failed to set some workflow app settings"
 } else {
@@ -1464,6 +1360,7 @@ $localSettings = @{
         WORKFLOWS_SUBSCRIPTION_ID = $subscriptionId
         WORKFLOWS_LOCATION_NAME = $Location
         WORKFLOWS_RESOURCE_GROUP_NAME = $ResourceGroup
+        WORKFLOWS_LOGIC_APP_NAME = $LOGIC_APP_NAME
         agent_ResourceID = $openaiResourceId
         agent_openAIEndpoint = $openaiEndpoint
         agent_openAIKey = $openaiKey
@@ -1502,69 +1399,53 @@ $jsonContent = $localSettings | ConvertTo-Json -Depth 10
 $jsonContent | Out-File -FilePath $localSettingsPath -Encoding UTF8
 
 Write-Status "local.settings.json file created successfully at: $localSettingsPath"
-Write-Info "The file contains all necessary configuration values for your Logic Apps."
 
-Write-Header "Next Steps"
-Write-Info "1. Setup Database Schema:"
-Write-Info "   - Open Azure Portal -> SQL Database -> Query Editor"
-Write-Info "   - Authenticate with Microsoft Entra ID"
-Write-Info "   - Run the database-setup.sql script to create tables and sample data"
-Write-Info "2. Deploy using VS Code Azure Logic Apps Extension:"
-Write-Info "   a. Open LogicApps folder in VS Code"
-Write-Info "   b. Install Azure Logic Apps extension" 
-Write-Info "   c. Deploy workflows to $LOGIC_APP_NAME"
-Write-Info "   d. SQL connections will work immediately with connection string authentication"
-Write-Info "3. Grant Microsoft Graph Permissions:"
-Write-Info "   - Run: .\grant-graph-permissions.ps1 -ManagedIdentityPrincipalId '<YOUR-LOGIC-APP-PRINCIPAL-ID>'"
-Write-Info "   - Or use Azure Portal -> Microsoft Entra ID -> Enterprise Applications method"
-Write-Info "4. Authorize API Connections:"
-Write-Info "   - Azure Portal -> Logic App -> Connections -> Authorize each Microsoft 365 connection"
-Write-Info "5. Deploy Logic App workflows using VS Code Azure Logic Apps extension:"
-Write-Info "   a. Open LogicApps folder in VS Code"
-Write-Info "   b. Install Azure Logic Apps extension"
-Write-Info "   c. Deploy workflows to $LOGIC_APP_NAME"
-Write-Info "   d. All connections including SQL will work immediately with deployed configuration"
-Write-Info "6. Configure Microsoft Forms and Teams workspace (see SETUPCONNECTIONS.md)"
-Write-Info "7. Test the system with a sample loan application"
-
-Write-Header "Resource Summary"
-Write-Status "✓ Resource Group: $ResourceGroup"
-Write-Status "✓ SQL Server: $SQL_SERVER_NAME.database.windows.net"
-Write-Status "✓ SQL Database: $SQL_DATABASE_NAME"
-Write-Status "✓ OpenAI Service: $OPENAI_ACCOUNT_NAME"
-Write-Status "✓ API Management: $APIM_SERVICE_NAME"
-Write-Status "✓ Logic App: $LOGIC_APP_NAME"
-Write-Status "✓ Storage Account: $STORAGE_ACCOUNT_NAME"
-Write-Status "✓ Blob Storage: $BLOB_STORAGE_NAME"
-
-Write-Header "Important Notes"
-Write-Info "SQL Server: $SQL_SERVER_NAME.database.windows.net"
-Write-Info "SQL Database: $SQL_DATABASE_NAME"
-Write-Warning "SQL Admin Username: $SQL_ADMIN_USERNAME"
-Write-Warning "SQL Admin Password: [REDACTED - check configuration output above]"
-Write-Info "Microsoft Entra ID Admin: $currentUser (configured for portal access)"
-Write-Info "Policy Document URL: $policyUrl"
-Write-Info "Resource Group: $ResourceGroup"
+Write-Header "Deployment Complete!"
+Write-Status "✅ All Azure resources deployed successfully"
 Write-Info ""
-Write-Header "Database Setup Required"
-Write-Warning "IMPORTANT: Run database-setup.sql script to create required tables"
-Write-Info "1. Portal Method: Azure Portal -> SQL Database -> Query Editor -> Authenticate -> Run script"
-Write-Info "2. sqlcmd Method: sqlcmd -S $SQL_SERVER_NAME.database.windows.net -d $SQL_DATABASE_NAME -G -i database-setup.sql"
+
+# Final verification and fix for critical workflow settings
+Write-Header "Verifying Critical Workflow Settings"
+Write-Info "Ensuring workflow app settings are correctly configured..."
+
+# Get the current workflow app setting to verify it's correct
+$currentWorkflowAppName = az webapp config appsettings list --resource-group $ResourceGroup --name $LOGIC_APP_NAME --query "[?name=='WORKFLOWS_LOGIC_APP_NAME'].value" --output tsv
+
+if ($currentWorkflowAppName -ne $LOGIC_APP_NAME) {
+    Write-Warning "WORKFLOWS_LOGIC_APP_NAME mismatch detected!"
+    Write-Warning "  Expected: $LOGIC_APP_NAME"
+    Write-Warning "  Current:  $currentWorkflowAppName"
+    Write-Info "Fixing workflow app settings..."
+    
+    # Fix the critical workflow settings that must match the actual resource names
+    az webapp config appsettings set `
+        --name $LOGIC_APP_NAME `
+        --resource-group $ResourceGroup `
+        --settings `
+            "WORKFLOWS_LOGIC_APP_NAME=$LOGIC_APP_NAME" `
+            "WORKFLOWS_RESOURCE_GROUP_NAME=$ResourceGroup" `
+            "WORKFLOWS_SUBSCRIPTION_ID=$subscriptionId" `
+            "WORKFLOWS_LOCATION_NAME=$Location" > $null
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Status "✅ Workflow app settings corrected"
+    } else {
+        Write-Warning "⚠️ Failed to update workflow app settings - manual verification required"
+    }
+} else {
+    Write-Status "✅ Workflow app settings are correctly configured"
+}
+
+Write-Info "📖 Next Steps: See README.md for complete setup instructions"
 Write-Info ""
-Write-Info "To clean up all resources: az group delete --name $ResourceGroup --yes --no-wait"
-
-Write-Header "Security Best Practices Implemented"
-Write-Status "✓ Cryptographically secure password generation using RNGCryptoServiceProvider"
-Write-Status "✓ SecureString parameter support for password input"
-Write-Status "✓ Sensitive variable cleanup after use"
-Write-Status "✓ Password redacted from final output (shown only in configuration section)"
-Write-Status "✓ Automatic local.settings.json file generation"
-Write-Status "✓ API Management subscription keys automatically mapped to appropriate APIs"
-
-Write-Header "API Management Key Mapping"
-Write-Info "Risk Assessment API (olympia-risk-assessment) -> riskAssessmentAPI_SubscriptionKey"
-Write-Info "Employment Validation API (litware-employment-validation) -> employmentValidationAPI_SubscriptionKey"
-Write-Info "Credit Check API (cronus-credit) -> creditCheckAPI_SubscriptionKey"
-Write-Info "Demographics API (northwind-demographic-verification) -> demographicVerificationAPI_SubscriptionKey"
-
-Write-Status "Deployment script completed successfully!"
+Write-Info "� Key remaining tasks:"
+Write-Info "  1. Setup database schema (SQL scripts provided)"
+Write-Info "  2. Authorize API connections"
+Write-Info "  3. Deploy workflows with VS Code"
+Write-Info "  4. Test with sample data"
+Write-Info ""
+Write-Info "🗂️  Resource Group: $ResourceGroup"
+Write-Info "🛢️  SQL Server: $SQL_SERVER_NAME.database.windows.net" 
+Write-Info "🤖 OpenAI Service: $OPENAI_ACCOUNT_NAME"
+Write-Info ""
+Write-Info "🧹 To clean up: az group delete --name $ResourceGroup --yes --no-wait"

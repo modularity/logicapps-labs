@@ -106,6 +106,17 @@ $GraphAppId = "00000003-0000-0000-c000-000000000000"
 Write-Host "🚀 AI Loan Agent - Microsoft Graph Permissions Setup" -ForegroundColor Cyan
 Write-Host "=" * 60
 
+# Check for MFA enforcement
+Write-Host "⚠️  Important: Microsoft has enforced MFA for Azure CLI/PowerShell after October 1, 2025" -ForegroundColor Yellow
+Write-Host "   If this script fails with authentication errors, use Azure Portal instead:" -ForegroundColor Yellow
+Write-Host "   1. Go to Azure Portal → Microsoft Entra ID → Enterprise Applications" -ForegroundColor Yellow
+Write-Host "   2. Search for your Logic App name: [LogicAppName]" -ForegroundColor Yellow
+Write-Host "   3. Add Microsoft Graph permissions manually" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "   Alternative: The workflow can function with connection-level OAuth authentication" -ForegroundColor Cyan
+Write-Host "   without Graph permissions. Proceed with deployment if this script fails." -ForegroundColor Cyan
+Write-Host ""
+
 # Function to extract Logic App managed identity Principal ID
 function Get-LogicAppPrincipalId {
     param(
