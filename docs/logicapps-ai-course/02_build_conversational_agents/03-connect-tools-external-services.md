@@ -15,7 +15,7 @@ When you finish this module, you'll achieve the goals and complete the tasks in 
 
 - Understand key connector concepts such as actions, connections, authentication, and limits.
 - Add one read-only connector action as a tool that your agent can autonomously and directly call without needing authentication.
-- ptionally add an authenticated connector action as a tool that handles inputs and errors.
+- Optionally add an authenticated connector action as a tool that handles inputs and errors.
 - Apply best practices for safe, reliable tool use in conversational scenarios.
 
 This module keeps the primary flow simple without using [agent parameters](https://learn.microsoft.com/azure/logic-apps/agent-workflows-concepts#key-concepts) or [on-behalf-of (OBO) authorization](https://learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow). In Module 04, you learn how to parameterize inputs. In Module 05, you learn how to add OBO authorization.
