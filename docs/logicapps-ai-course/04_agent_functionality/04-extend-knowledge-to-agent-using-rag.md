@@ -1,6 +1,6 @@
 ---
-title: 04 - Add knowledge to your agent using advanced techniques
-description: Learn how to add custom knowledge to your Azure Logic Apps workflows and agents using advanced techniques.
+title: 04 - Add knowledge to your agent using RAG techniques
+description: Learn how to add custom knowledge to your Azure Logic Apps workflows and agents using retrieval-augmented generation.
 ms.service: azure-logic-apps
 author: brbenn
 ms.author: brbenn
@@ -48,7 +48,7 @@ This two-phase approach ensures that your conversational agents can access and r
 
 Azure Logic Apps provides a comprehensive suite of document processing and transformation actions that enable seamless data ingestion from diverse sources and document formats.
 
-![Image showing AI Operations and Data Operations action groups.](media/04-extend-knowledge-to-agent/action_list.png)
+![Image showing AI Operations and Data Operations action groups.](media/04-extend-knowledge-to-agent-using-rag/action_list.png)
 
 ## Document Ingestion for Gen AI Applications
 
@@ -62,7 +62,7 @@ With over 1,400 enterprise connectors, Logic Apps provides unparalleled access t
 > - You have access to an Azure Storage Account resource. For steps on setting this resource up, follow the guide here [Create an Azure storage account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-create?tabs=azure-portal).
 >- You have a upload a pdf document to your storage resource. The link to this resource will be used in the next steps. The pdf used in this module can be download here [Benefit_Options.pdf](media/03-add-knowledge-to-agent/Benefit_Options.pdf) 
 > - You have access to an Open AI Service and this service has a deployed model for generating text embeddings. For more on creating this service visit [Explore Azure OpenAI in Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry/openai/tutorials/embeddings?source=recommendations&tabs=command-line%2Cpython-new&pivots=programming-language-python).
-> - You have access to an Azure AI Search service. For more on creating this resource visit here [Create an Azure AI Search service](https://learn.microsoft.com/en-us/azure/search/tutorial-optimize-indexing-push-api#create-an-azure-ai-search-service). Additionally, this module assumes your search index is created using this index schema: [index_schema](media/04-extend-knowledge-to-agent/index_schema.json)
+> - You have access to an Azure AI Search service. For more on creating this resource visit here [Create an Azure AI Search service](https://learn.microsoft.com/en-us/azure/search/tutorial-optimize-indexing-push-api#create-an-azure-ai-search-service). Additionally, this module assumes your search index is created using this index schema: [index_schema](media/04-extend-knowledge-to-agent-using-rag/index_schema.json)
 
 ### Step 1 - Create our data ingestion worflow
 
@@ -70,16 +70,16 @@ With over 1,400 enterprise connectors, Logic Apps provides unparalleled access t
 1. Create a new standard workflow
 1. Add a **Request** trigger.
 1. Add the **HTTP** action and rename it to *Get company data* Set the **URI** property to the the link of the *Benefit_Options.pdf* that was upload to your Azure storage. Set the **Method** property to *GET*.
-   ![Screenshot of HTTP action](media/04-extend-knowledge-to-agent/http_action.png)
+   ![Screenshot of HTTP action](media/04-extend-knowledge-to-agent-using-rag/http_action.png)
 
 1. Add the **Parse a document** action. Set the **Document Content** property to the value "*@body('Get_Company_data')*".
 1. Add the **Chunk text** action. Set the **Text** value to "*@body('Parse_a_document')*" and set the **TokenSize** 
 property to *500*. All other property can remain their default values.
-   ![Screenshot of chunk text action.](media/04-extend-knowledge-to-agent/chunk_text.png)  
+   ![Screenshot of chunk text action.](media/04-extend-knowledge-to-agent-using-rag/chunk_text.png)  
    At this point your workflow should resemble the follow:
-   ![Screenshot of trigger, http, parse, and chunk actions.](media/04-extend-knowledge-to-agent/trigger_parse_chunk.png)
+   ![Screenshot of trigger, http, parse, and chunk actions.](media/04-extend-knowledge-to-agent-using-rag/trigger_parse_chunk.png)
 1. Add the **OpenAI-Get Embeddings** action. Connect this action to your OpenAI Service. Set the **Deployment Identifier** property to the name of your text embeddings deployment. Set the **Array Input** property to the value "*@body('Chunk_text')?['value']*".
-   ![Screenshot of get embeddings action.](media/04-extend-knowledge-to-agent/embeddings.png)
+   ![Screenshot of get embeddings action.](media/04-extend-knowledge-to-agent-using-rag/embeddings.png)
 1. Add the **Select** action and rename it to **Select index objects**. Set the **From** property to "*@range(0, length(body('Select_chunks')))*". Set the **Map** property to the value:
   
 ```
@@ -90,11 +90,11 @@ property to *500*. All other property can remain their default values.
  "id" : @guid()
 }
 ```
-  ![Screenshot of select action.](media/04-extend-knowledge-to-agent/select_action.png)
-1. Add the **Azure AI Search-Index documents** action, and rename it to **Index documents**. Connect this action to your Azure AI Search Service. Set the **Index Name** drop down to your index. If you used the provided [index_schema.json](media/04-extend-knowledge-to-agent/index_schema.json), the name to select is **enterprise-data**. Set the **Documents To Index** property to the value "*@body('Select_index_objects')*".
+  ![Screenshot of select action.](media/04-extend-knowledge-to-agent-using-rag/select_action.png)
+1. Add the **Azure AI Search-Index documents** action, and rename it to **Index documents**. Connect this action to your Azure AI Search Service. Set the **Index Name** drop down to your index. If you used the provided [index_schema.json](media/04-extend-knowledge-to-agent-using-rag/index_schema.json), the name to select is **enterprise-data**. Set the **Documents To Index** property to the value "*@body('Select_index_objects')*".
 
-   ![Screenshot of index action.](media/04-extend-knowledge-to-agent/index_action.png)
-   ![Screenshot of full workflow](media/04-extend-knowledge-to-agent/workflow_full.png)
+   ![Screenshot of index action.](media/04-extend-knowledge-to-agent-using-rag/index_action.png)
+   ![Screenshot of full workflow](media/04-extend-knowledge-to-agent-using-rag/workflow_full.png)
 
 ### Step 2 - Run your ingestion workflow
 1. At the top of the Designer, click the **Run** button.
@@ -126,33 +126,34 @@ Use this tool to do a vector search of the user's question, the output of the ve
 
 ### Step 2 - Define the search tool on your agent
 1. On the designer, inside the agent, select the plus sign (+) under **Add tool**.
-1. Click on the Tool, and rename it to **Document search tool**. Then add the follow Description **Searches an az search index for content related to the input question.** 
+1. Click on the Tool, and rename it to **Document search tool**. Then add the follow Description **Searches an azure search index for content related to the input question.** 
 1. Add the **OpenAI - Get an embedding** action. Connect this action to your Open AI service. 
    1. Set the **Deployment Identifier** property to your deployment text embedding model. 
    1. Set the **Single Text Input** property to a new Agent property defined by the following:
       - Name: userQuery
       - Type: String
       - Description: "User text to search"
-![Screenshot of embedding action.](media/04-extend-knowledge-to-agent/retrieval_embedding.png)
+![Screenshot of embedding action.](media/04-extend-knowledge-to-agent-using-rag/retrieval_embedding.png)
 
 1. Add the **Azure AI Search - Search vectors** action. 
    1. Set the **Index Name** property to the index used in the ingestion workflow.
    1. Set the **Vector Fields** property to the embeddings field of your index. If you are using the index schema in this module the filed name would be: *Embedding*.
    . Set the **Number Of Nearest Neighbors To Return** property to 2.
-   ![Screenshot of AI Search - vector search action.](media/04-extend-knowledge-to-agent/retrieval_search_vec.png)
+   ![Screenshot of AI Search - vector search action.](media/04-extend-knowledge-to-agent-using-rag/retrieval_search_vec.png)
 1. Save the workflow.
 
 ### Step 3 - Test your workflow in Chat experience
 
 1. On the designer toolbar, select **Chat**.
 1. In the chat client interface, ask the following questions: **How many health plan options are available?**
-   ![Screenshot of chat experience.](media/04-extend-knowledge-to-agent/chat_conversation.png)
+   ![Screenshot of chat experience.](media/04-extend-knowledge-to-agent-using-rag/chat_conversation.png)
 
 ### Step 4 (Optional) - View Run history
 1. Click **Run history** on the left-side menu and open the latest run.
-   ![Screenshot of run history agent output.](media/04-extend-knowledge-to-agent/run_history_agent.png)
-   ![Screenshot of run history embeddings output.](media/04-extend-knowledge-to-agent/run_history_embed.png)
-   ![Screenshot of run history vector search output.](media/04-extend-knowledge-to-agent/run_history_vector.png)
+   ![Screenshot of run history agent output.](media/04-extend-knowledge-to-agent-using-rag/run_history_agent.png)
+   ![Screenshot of run history embeddings output.](media/04-extend-knowledge-to-agent-using-rag/run_history_embed.png)
+   ![Screenshot of run history vector search output.](media/04-extend-knowledge-to-agent-using-rag/run_history_vector.png)
+
 ## Advanced RAG using Azure AI Search
 
 Azure AI Search provides enterprise-grade search capabilities that enable sophisticated RAG implementations by indexing and retrieving relevant content from large document collections. It supports semantic search, vector search, and hybrid search approaches, allowing your conversational agents to find the most contextually relevant information from unstructured documents, PDFs, web pages, and structured data sources. With built-in AI enrichment capabilities, Azure AI Search can extract entities, key phrases, and semantic meaning from documents during indexing, creating a rich knowledge base that enhances the quality and precision of your agent's responses.

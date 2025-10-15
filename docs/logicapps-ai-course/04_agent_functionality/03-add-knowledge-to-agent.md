@@ -63,10 +63,3 @@ Using the "Document Analysis tool" to download the document, the output from thi
 1. In the chat client interface, ask the following questions: **How many health plan options are available?**, then ask **Can you summarize both plans?**
    
    ![Screenshot of chat answered questions.](media/03-add-knowledge-to-agent/ingest_summary_final.png)
-
-
-## Advanced RAG using Azure AI Search
-
-Azure AI Search provides enterprise-grade search capabilities that enable sophisticated RAG implementations by indexing and retrieving relevant content from large document collections. It supports semantic search, vector search, and hybrid search approaches, allowing your conversational agents to find the most contextually relevant information from unstructured documents, PDFs, web pages, and structured data sources. With built-in AI enrichment capabilities, Azure AI Search can extract entities, key phrases, and semantic meaning from documents during indexing, creating a rich knowledge base that enhances the quality and precision of your agent's responses.
-
-[Automate RAG Indexing: Azure Logic Apps & AI Search for Source Document Processing](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/automate-rag-indexing-azure-logic-apps--ai-search-for-source-document-processing/4266083)
