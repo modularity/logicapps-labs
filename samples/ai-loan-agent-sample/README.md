@@ -78,7 +78,8 @@ cd Deployment
 - 🔄 **Unique Naming**: Automatically generates unique resource names to avoid conflicts
 - 🛠️ **Error Recovery**: Improved error handling with detailed troubleshooting guidance
 - 📝 **Auto-Configuration**: Generates `local.settings.json` with deployed resource values
-- � **Troubleshooting**: See `TROUBLESHOOTING.md` for common issues and solutions
+- 🗄️ **Automated Database Setup**: Automatically configures SQL database if `sqlcmd` is available
+- 🔧 **Troubleshooting**: See `TROUBLESHOOTING.md` for common issues and solutions
 
 **Deployment Time:**
 - *Typical Duration: 45-60 minutes (API Management creation takes 30-45 minutes)*
@@ -97,42 +98,37 @@ cd Deployment
 .\deploy.ps1 -APIMServiceName "existing-apim-service"
 ```
 
-### Step 2: Configure Microsoft 365 (During Deployment)
+### Step 2: Create Microsoft Form (During Deployment)
 
 *⏰ Complete this step WHILE Step 1 is running to maximize efficiency*
 
-#### 2.1 Create Microsoft Forms
-
-**🔗 Workflow Dependency**: *Form triggers the AI Loan Agent workflow* - The workflow starts immediately reviewing the loan application once someone submits this form.
+**🔗 Workflow Dependency**: The AI Loan Agent workflow is triggered when a loan application is submitted through a Microsoft Form. In this step, you will create the form and save its `Form ID` for use in a later step after the core infrastructure has been deployed.
 
 1. **Visit Microsoft Forms**: Go to [https://forms.microsoft.com/Pages/DesignPagev2.aspx](https://forms.microsoft.com/Pages/DesignPagev2.aspx)
 
-2. **Import the Form**:
+2.  **Import or Create the Form**:
    
-   **If you have existing forms** (Quick Import option available):
-   - Click "Quick import" at the top of the page
-   - Select the `Vehicle-Loan-Application-Form-Import.docx` file (located in the `ai-loan-agent-sample` folder)
-   - Confirm the form type when prompted
-   
-   **If this is your first time using Microsoft Forms** (no Quick Import option):
-   - Click "New Form" to create a blank form
-   - You'll need to manually create the form fields using the template in `FORM-FIELDS-TEMPLATE.md` as a guide
-   - Alternatively, try uploading the `Vehicle-Loan-Application-Form-Import.docx` file through "Upload from file" if available
+    **Option A: Import from File (Recommended)**
+    - If you see a "Quick import" option, click it.
+    - Select the `Vehicle-Loan-Application-Form-Import.docx` file from the `ai-loan-agent-sample` folder.
+    - This will automatically create the form with the required fields.
 
-3. **Review Form**: Once the form is created/imported, review all fields and make any necessary adjustments (change field types as needed)
-4. **Get Form URL**: 
-   - Click "Collect responses" 
-   - Select "Copy link" to obtain the form URL
-   - The URL will include the Form ID that you'll need for the workflow configuration
-5. **Save Form ID**: Extract the ID from the URL format: `https://forms.microsoft.com/Pages/ResponsePage.aspx?id=[FORM_ID]`
-6. **Configure Workflow Trigger**: You'll need to update the Logic App workflow trigger with this Form ID
-   - **Location**: `LogicApps/LoanApprovalAgent/workflow.json`
-   - **What to update**: Replace the placeholder Form ID in the Microsoft Forms trigger
-   - **When**: Before deploying the workflow (Step 7)
+    **Option B: Create Manually**
+    - If you don't have the "Quick import" option, click "New Form".
+    - Manually add the fields as specified in `FORM-FIELDS-TEMPLATE.md`.
 
-**⚠️ Important**: The workflow trigger is currently configured with a placeholder Form ID. You must update it with your actual Form ID before deployment, or the workflow won't receive form submissions.
+3.  **Review and Validate the Form**:
+    - **This is a critical step.** The imported or created form must contain **14 specific fields** for the `LoanApprovalAgent` workflow to function correctly.
+    - The form should have:
+        - **12 Text input fields** for applicant and loan details.
+        - **1 Multiple-choice question** for loan purpose.
+        - **1 Closing statement** (informational text).
+    - Carefully compare your form against the structure outlined in `FORM-FIELDS-TEMPLATE.md`. Ensure all fields are present and that their types (e.g., Text, Choice) are correct. The data from these fields is expected by the Logic App workflow you will deploy later.
 
-**⚠️ Note**: After import/creation, you may need to adjust field types (Date, Number, Choice) and add dropdown options for Vehicle Make as described in `FORM-FIELDS-TEMPLATE.md`.
+4.  **Get and Save the Form ID**: 
+    - Click **Collect responses** at the top of your form.
+    - Copy the sharing link. The URL will have a format like: `https://forms.microsoft.com/Pages/ResponsePage.aspx?id=[YOUR_FORM_ID]`
+    - **Save the `Form ID` part of the URL.** You will need this ID in a post-deployment step to connect your Logic App to this form.
 
 #### 2.2 Connect Workflow to Teams Channel
 
@@ -168,24 +164,38 @@ cd Deployment
 
 ## Post-Deployment Configuration
 
-*⚠️ Complete Steps 3-5 AFTER Step 1 (deployment) finishes*
+*⚠️ Complete these steps AFTER Step 1 (deployment) finishes*
 
-### Step 3: Setup Database Schema
+### Step 3: Database Setup (Automated)
 
-**🔗 Workflow Dependency**: *AI agent queries this data* - The agent looks up customer loan history and special vehicle info to gather context that informs a loan application decision.
+**🔗 Workflow Dependency**: The AI agent queries the SQL database for customer history and special vehicle information. The deployment script now handles this automatically.
 
-1. **Open Azure Portal** → Your Resource Group → Your SQL Database
-2. **Click "Query editor (preview)"** in the left sidebar
-3. **Sign in with "Entra ID authentication"** (uses your Microsoft Entra ID credentials)**
-4. **Update the script**:
-   - Open `Deployment/complete-database-setup.sql`
-   - Replace `your-logic-app-name` with your actual Logic App name
-   - Copy the updated script
-5. **Paste into Query Editor and click "Run"**
+**✅ Automated Setup**: If you have `sqlcmd` installed (common on Windows), the deployment script automatically:
+- Creates the required database tables
+- Populates sample data for testing
+- Configures Logic App managed identity permissions
+- Completes the entire database setup
 
-This creates sample customer data, special vehicle tables, and grants your Logic App's managed identity database access.
+**📋 Manual Setup** (if `sqlcmd` is not available):
+If the deployment script shows "sqlcmd is not available", follow these steps:
 
-**Troubleshooting**: If you get "Access Denied", ensure you have Microsoft Entra ID admin permissions on the SQL Server.
+1.  **Navigate to the SQL Database**:
+    *   In the Azure Portal, go to your resource group.
+    *   Click on the resource of type **SQL database**. It is important to select this one, not the 'SQL server' resource.
+
+2.  **Open Query Editor and Configure Access**:
+    *   In the SQL database's left-hand navigation, select **Query editor (preview)**.
+    *   You may see an error message: *"Cannot open server '[server-name]' requested by the login. Client with IP address '[your-ip]' is not allowed to access the server."*
+    *   If you see this, click the link in the message that says **Allowlist IP [your-ip] on server [server-name]**. This will create a firewall rule to grant your computer access. It may take a moment to take effect.
+    *   After the firewall rule is created, connect to the database using **Microsoft Entra ID authentication**.
+
+3.  **Run the Setup Script**:
+    *   Open the `Deployment/complete-database-setup.sql` file in your local editor.
+    *   The script placeholder has already been replaced with your actual Logic App name during deployment.
+    *   Copy the entire content of the SQL script.
+    *   Paste it into the Query Editor in the Azure Portal and click **Run**.
+
+This script creates the necessary tables, populates them with sample data, and grants your Logic App's managed identity the required permissions to access the database.
 
 ### Step 4: Configure V2 API Connections (Two-Layer Authentication)
 
@@ -200,7 +210,7 @@ Logic Apps Standard V2 OAuth connections require **TWO separate authentication l
 
 Both layers must be configured for the workflow to successfully use Microsoft Forms, Teams, and Outlook.
 
-#### 4.1 Authorize Microsoft 365 V2 Connections (Layer 1)
+#### 5.1 Authorize Microsoft 365 V2 Connections (Layer 1)
 
 **✨ Enhanced**: The deployment now creates V2 connections with automatic access policies!
 
@@ -216,7 +226,7 @@ Both layers must be configured for the workflow to successfully use Microsoft Fo
 
 **📧 Email Sender**: The workflow will send a loan application decision email from the Microsoft 365 account used to authorize `outlookConnection`.
 
-#### 4.2 Grant Connection Permissions (Layer 2)
+#### 5.2 Grant Connection Permissions (Layer 2)
 
 **⚠️ Critical**: The Logic App's managed identity needs Contributor role on each connection resource:
 
@@ -247,7 +257,7 @@ Summary: 3 permissions granted, 0 errors
 **Why this is needed**: 
 - **Layer 2 RBAC**: Without these permissions, the webhook trigger will fail with "BadRequest" or "Value cannot be null (Parameter 'scheme')" errors
 
-#### 4.3 Add Logic App to Teams Team (Manual)
+#### 5.3 Add Logic App to Teams Team (Manual)
 
 **⚠️ Required for Teams Integration**: For the Logic App to post messages to Teams channels, its managed identity must be added as a member of your Teams team.
 
@@ -258,7 +268,7 @@ Summary: 3 permissions granted, 0 errors
 3. **Add Member**: 
    - Go to the **Members** tab
    - Click **Add member**
-   - Search for your Logic App name (e.g., `ld-test-loan-agent-logicapp-817c`)
+   - Search for your Logic App name (e.g., `my-loan-agent-logicapp-1234`)
    - Select it from the search results
    - Click **Add** with **Member** role
 4. **Verify Addition**: Confirm your Logic App appears in the team's member list
@@ -279,7 +289,7 @@ If you get `UnauthorizedSenderForChannelNotification` error:
 - Ensure you're using the correct Teams Group ID and Channel ID
 - Try removing and re-adding the Logic App to the team
 
-#### 4.4 Generate Runtime URLs and Update Settings
+#### 5.4 Generate Runtime URLs and Update Settings
 
 After authorizing connections and granting permissions, update your configuration:
 
@@ -307,7 +317,7 @@ cd Deployment/helpers
 
 **Alternative**: Manually edit `LogicApps/local.settings.json` with the runtime URLs from Step 1.
 
-### Step 5: Finalize Local Development Configuration
+### Step 6: Finalize Local Development Configuration
 
 **🔗 Workflow Dependency**: *Tells workflow where to find your resources* - The workflow needs your specific Form ID, Teams channel IDs, and connection URLs. Wrong values cause "resource not found" errors.
 
@@ -325,10 +335,10 @@ cd Deployment/helpers
 2. **Email Address**: Update `DemoUserEmail` with your actual email address
    - *This demo uses a hardcoded applicant email address because SAMPLE-DATA.md has placeholder addresses. Production workflows would extract the applicant's email from form data.*
 3. **Project Path**: Update `ProjectDirectoryPath` with your local LogicApps folder path
-4. **Runtime URLs**: Add the Microsoft 365 connection runtime URLs from Step 4.4
-5. **Form ID**: Update the workflow trigger in `LogicApps/LoanApprovalAgent/workflow.json` (detailed in Step 7.1)
+4. **Runtime URLs**: Add the Microsoft 365 connection runtime URLs from Step 5.4
+5. **Form ID**: Update the workflow trigger in `LogicApps/LoanApprovalAgent/workflow.json` (detailed in Step 8.1)
 
-**💡 Tip**: Use the `update-local-settings.ps1` helper script (Step 4.4) to update multiple values at once instead of manual editing.
+**💡 Tip**: Use the `update-local-settings.ps1` helper script (Step 5.4) to update multiple values at once instead of manual editing.
 
 **Example manual updates needed in `local.settings.json`:**
 ```json
@@ -340,7 +350,7 @@ cd Deployment/helpers
 }
 ```
 
-### Step 6: Configure API Management Policies (If Needed)
+### Step 7: Configure API Management Policies (If Needed)
 
 **🔗 Workflow Dependency**: *Optional - provides realistic test data* - These mock APIs return sample credit scores and employment data. The workflow runs without them, but AI decisions may be unrealistic during testing.
 
@@ -371,13 +381,13 @@ If you need to manually configure or update the API policies:
 - Mock data is based on input patterns (SSN endings, employer names)
 - Each policy includes proper error handling with try/catch blocks
 
-### Step 7: Deploy Logic Apps
+### Step 8: Deploy Logic Apps
 
 **🔗 Workflow Dependency**: *Uploads the workflow code to Azure* - This copies your workflow definitions to the cloud. Until deployed, the workflows exist only locally and can't process real applications.
 
-*Complete this step AFTER configuring local.settings.json (Step 5):*
+*Complete this step AFTER configuring local.settings.json (Step 6):*
 
-#### 7.1 Update Form ID in Workflow Trigger
+#### 8.1 Update Form ID in Workflow Trigger
 
 **⚠️ Critical**: Before deploying, you must update the Microsoft Forms trigger with your actual Form ID:
 
@@ -402,7 +412,7 @@ If you need to manually configure or update the API policies:
            "path": "/formapi/api/forms('@{encodeURIComponent('PUT_YOUR_FORM_ID_HERE')}')/responses",
    ```
 
-3. **Replace `PUT_YOUR_FORM_ID_HERE`** with your actual Form ID from Step 2.1
+3. **Replace `PUT_YOUR_FORM_ID_HERE`** with your actual Form ID from Step 2.
    - Extract from your form URL: `https://forms.microsoft.com/Pages/ResponsePage.aspx?id=YOUR_FORM_ID`
    - Example: If your Form ID is `v4j5cvGGr0GRqy180BHbRzvuYcO0V-9Bq3SxP9NbF71UOFlOTFYyMEdPWEhFSVQ3VVRHVTZXREFYTy4u`, replace both instances
 
@@ -410,7 +420,7 @@ If you need to manually configure or update the API policies:
 
 **⚠️ Important**: Both locations MUST use the exact same Form ID, or the workflow won't trigger when forms are submitted.
 
-#### 7.2 Map Form Field IDs to Workflow
+#### 8.2 Map Form Field IDs to Workflow
 
 **⚠️ Critical**: Microsoft Forms assigns unique IDs to each form field. Your form's field IDs are different from the sample's hardcoded IDs in workflow.json.
 
@@ -453,7 +463,7 @@ cd Deployment/helpers
 | Field Name | Description | Example Value |
 |------------|-------------|---------------|
 | **Name** | Applicant's full name | John Smith |
-| **SSN** | Social Security Number | 123-45-6789 |
+| **SSN** | Social Security Number | 555-12-3456 |
 | **Date of Birth** | Date of birth | 01/15/1985 |
 | **Employer** | Current employer name | Contoso Inc. |
 | **Years Worked** | Years at current job | 5 |
@@ -461,12 +471,12 @@ cd Deployment/helpers
 | **Loan Amount** | Requested loan amount | 35000 |
 | **Vehicle Make** | Vehicle make/model | Toyota Camry |
 
-#### 7.3 Deploy with VS Code
+#### 8.3 Deploy with VS Code
 
 **Deploy workflows with VS Code**: See instructions in `LogicApps/README.md` → "Next Steps: Deploy to Azure"
 
  
-### Step 8: End-to-End Testing
+### Step 9: End-to-End Testing
 
 **🔗 Workflow Dependency**: *Validates everything works together* - Tests the complete flow: form submission → AI processing → Teams notification. Confirms all previous steps were configured correctly.
 
@@ -507,8 +517,8 @@ cd Deployment/helpers
 **Microsoft 365 Connection Issues**:
 - All connections initially show "Unauthenticated" - this is normal
 - **V2 connections require TWO authentication layers**:
-  - **Layer 1 (OAuth)**: Authorize each connection through Azure Portal (Step 4.1)
-  - **Layer 2 (RBAC)**: Grant Contributor role using `grant-connection-permissions.ps1` (Step 4.2)
+  - **Layer 1 (OAuth)**: Authorize each connection through Azure Portal (Step 5.1)
+  - **Layer 2 (RBAC)**: Grant Contributor role using `grant-connection-permissions.ps1` (Step 5.2)
 - Ensure you're using a Microsoft 365 account with proper licenses
 - **Missing Layer 2 permissions cause**: "BadRequest" on webhook subscription or "Value cannot be null (Parameter 'scheme')" errors
 
@@ -544,12 +554,12 @@ cd Deployment/helpers
   - **Manual alternative**: Go to Teams → Your Team → ⋯ → Manage team → Members → Add your Logic App's managed identity
   - **Verification**: Check that your Logic App appears in the team's member list
 - **Form not triggering workflow**: 
-  - Verify Form ID is correctly updated in `workflow.json` (Step 7.1)
+  - Verify Form ID is correctly updated in `workflow.json` (Step 8.1)
   - Check webhook body format includes: eventType, notificationUrl, source fields
   - Submit a new form to trigger webhook re-registration
 - **Application_Summary shows empty values**:
   - This means form field IDs don't match your form
-  - Run `update-form-field-mappings.ps1` to automatically fix field mappings (Step 7.2)
+  - Run `update-form-field-mappings.ps1` to automatically fix field mappings (Step 8.2)
 - Double-check Form ID and Teams Group/Channel IDs in `local.settings.json`
 - Test individual connections in Azure Portal before full workflow testing
 - Ensure Microsoft Forms connection is authorized and shows "Connected" status
@@ -590,9 +600,10 @@ Logic Apps Standard uses a **three-layer parameter resolution system**:
 
 **All three layers must be configured** for parameters to resolve correctly. The `update-form-field-mappings.ps1` script handles all three automatically.
 
-### ✅ Fully Automated (98% of setup)
+### ✅ Fully Automated (99% of setup)
 - **Azure Infrastructure**: All services provisioned and configured with managed identity
 - **Database Authentication**: Automatic Microsoft Entra ID admin setup and managed identity configuration
+- **Database Schema & Data**: Automatic table creation and sample data population (if `sqlcmd` available)
 - **Connection Strings**: Database, Storage, API Management keys auto-generated
 - **Mock APIs**: Credit check, employment verification, demographics with realistic responses
 - **Sample Data**: Database tables with comprehensive test scenarios
@@ -600,17 +611,17 @@ Logic Apps Standard uses a **three-layer parameter resolution system**:
 - **Security Configuration**: Firewall rules, access policies, and permissions set automatically
 - **V2 API Connections**: Automatic creation with access policies for Logic App managed identity
 
-### 🔧 Manual Configuration Required (2% of setup)
+### 🔧 Manual Configuration Required (1% of setup)
 Why these specific steps require manual intervention:
 - **Microsoft Forms**: No programmatic API available for form creation or import
-- **Form ID Configuration**: Must be manually updated in workflow trigger definition (Step 7.1)
-- **Form Field Mapping**: Each form has unique field IDs that must be mapped using `update-form-field-mappings.ps1` (Step 7.2)
+- **Form ID Configuration**: Must be manually updated in workflow trigger definition (Step 8.1)
+- **Form Field Mapping**: Each form has unique field IDs that must be mapped using `update-form-field-mappings.ps1` (Step 8.2)
   - Script updates all three parameter resolution layers: local.settings.json, parameters.json, and Azure app settings
   - Automatically restarts Logic App to load new settings
 - **Teams Workspace**: Interactive setup required for proper organizational permissions
-- **V2 Connection OAuth (Layer 1)**: Security requirement mandates explicit user consent for Microsoft 365 access through Azure Portal (Step 4.1)
-- **V2 Connection RBAC (Layer 2)**: Logic App managed identity needs Contributor role on connection resources via `grant-connection-permissions.ps1` (Step 4.2)
-- **Connection Runtime URLs**: Must be generated and added to local.settings.json after authorization (Step 4.3)
+- **V2 Connection OAuth (Layer 1)**: Security requirement mandates explicit user consent for Microsoft 365 access through Azure Portal (Step 5.1)
+- **V2 Connection RBAC (Layer 2)**: Logic App managed identity needs Contributor role on connection resources via `grant-connection-permissions.ps1` (Step 5.2)
+- **Connection Runtime URLs**: Must be generated and added to local.settings.json after authorization (Step 5.3)
 - **Personal Identifiers**: Teams Group/Channel IDs and demo email require user-specific values
 
 ### 🔐 V2 Connection Authentication Architecture
@@ -635,7 +646,6 @@ Logic Apps Standard V2 OAuth connections use a **two-layer authentication model*
 - **Secure Key Storage**: API keys automatically stored in Azure Key Vault references
 - **Network Security**: Proper firewall rules and access controls configured automatically
 
-**Estimated Cost**: $355-720/month (varies by region and usage)
 **Cleanup**: `az group delete --name "ai-loan-agent-rg" --yes --no-wait`
 
 ## Workflows
