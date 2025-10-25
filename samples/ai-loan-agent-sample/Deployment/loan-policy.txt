@@ -1,0 +1,32 @@
+AI Loan Agent Policy Document
+
+LOAN APPROVAL CRITERIA:
+1. Minimum credit score: 650
+2. Maximum loan-to-income ratio: 5:1
+3. Minimum employment period: 2 years
+4. Maximum loan amount: $100,000
+
+SPECIAL VEHICLE CRITERIA:
+- Luxury vehicles (>$75,000): Requires minimum 750 credit score
+- Limited edition vehicles: Requires human approval
+- Custom vehicles: Requires human approval
+
+HUMAN ESCALATION REQUIRED FOR:
+- Credit scores between 600-649
+- Loan amounts >$75,000
+- Special vehicle categories
+- Employment verification failures
+- Unusual risk profile indicators
+
+AUTOMATIC APPROVAL CONDITIONS:
+- Credit score >750
+- Loan amount <$50,000
+- Standard vehicle purchase
+- Verified employment >3 years
+- Existing customer with good history
+
+AUTOMATIC REJECTION CONDITIONS:
+- Credit score <600
+- Loan amount >$100,000
+- Employment verification failure
+- High risk profile

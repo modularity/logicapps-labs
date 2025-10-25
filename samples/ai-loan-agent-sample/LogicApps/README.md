@@ -246,7 +246,7 @@ After completing local.settings.json configuration:
 4. **Select Target**: Choose your deployed Logic App resource
 5. **Test Deployment**: Verify workflows appear in Azure Portal
 
-> 💡 **Tip**: This corresponds to **Step 5** in the main deployment guide. After deployment, proceed to **Step 6: End-to-End Testing**.
+> 💡 **Tip**: This corresponds to **Step 6** in the main deployment guide. After deployment, proceed to **Step 7: End-to-End Testing**.
 
 ## Verification Steps
 
