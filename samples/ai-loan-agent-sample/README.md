@@ -7,6 +7,36 @@ An AI-powered loan approval system that automates vehicle loan application evalu
 
 > **🚀 AI Loan Agent Sample**: End to end deployment with 6 validation scenarios included
 
+## 📋 Quick Overview
+
+This sample demonstrates a complete AI agent workflow for loan processing with automated deployment:
+
+**What You'll Build:**
+- 🤖 **AI Loan Agent** - GPT-4 powered decision engine with company policy awareness
+- 🔧 **AI Agent Tools** - Credit checks, employment verification, customer history, risk assessment
+- 📝 **Microsoft Forms Integration** - Web-based loan application submission
+- 👥 **Teams Notifications** - Human review escalation for complex cases
+- 🗄️ **SQL Database** - Customer history and special vehicle data
+- 🌐 **Mock APIs** - Realistic external service simulation via API Management
+
+**Deployment Overview:**
+1. **Run Bicep Deployment** (`deploy-bicep.ps1`) - PowerShell script deploys Bicep templates to provision Azure infrastructure (~45-60 minutes)
+2. **Create Microsoft Form** - Build loan application form with 14 required fields (during deployment, ~10 minutes)
+3. **Configure Teams Channel** - Set up notification destination (during deployment, ~5 minutes)
+4. **Deploy Workflows to Azure** - Push workflows from VS Code with placeholder connections (~5 minutes)
+5. **Authorize M365 Connections** - Use Azure Portal to authorize Forms, Teams, Outlook with On-Behalf-Of (OBO) agent connections (~10 minutes)
+6. **Submit Test Form** - Submit ONE test application to trigger workflow and capture field IDs (~2 minutes)
+7. **Map Form Field IDs** - Run PowerShell script to auto-detect and update field mappings (~5 minutes)
+8. **Test End-to-End** - Submit remaining test applications and verify AI decisions (~15 minutes)
+
+**Total Setup Time**: ~100 minutes (infrastructure provisioning is longest step)
+
+**Key Features:**
+- ✅ **99% Automated** - Bicep templates (Infrastructure as Code) handle all Azure resource creation and configuration
+- ✅ **Secure by Default** - Managed Identity, Entra ID authentication, app settings stores connection strings and keys for Logic App runtime
+- ✅ **Idempotent Deployment** - Safe to re-run if anything fails
+- ✅ **Comprehensive Testing** - 6 pre-built test scenarios covering all decision paths
+
 ## 🎥 Demo & Resources
 
 - **📺 [Watch the Demo Video](https://youtu.be/rR1QjQTfCCg)** - Complete walkthrough of the AI Loan Agent in action
@@ -18,26 +48,34 @@ An AI-powered loan approval system that automates vehicle loan application evalu
 
 Before running the deployment script, ensure you have:
 
-- **Azure CLI** (version 2.0 or later)
+- **Azure PowerShell Modules** - Automatically installed by script if missing:
+  - `Az.Accounts` - Authentication and context management
+  - `Az.Resources` - Bicep deployment and resource group operations
+  - `Az.ApiManagement` - APIM API and policy management  
+  - `Az.Storage` - Blob storage operations
+  - `Az.Sql` - SQL Server firewall rules
+  - `SqlServer` - Database setup (optional, script falls back if unavailable)
 - **PowerShell 5.1** or **PowerShell Core 7+**
 - **VS Code** with Azure Logic Apps extension
 - **Azure subscription** with Contributor permissions
 - **Microsoft Entra ID permissions** (Global Admin or Privileged Role Admin)
 
+**Note**: The deployment script uses ** Azure PowerShell**
+
 ### Authentication Setup
 
 ```powershell
-# Login to Azure CLI
-az login
+# Login to Azure PowerShell
+Connect-AzAccount
 
 # Verify subscription access
-az account show
+Get-AzContext
 
 # Set correct subscription if needed
-az account set --subscription "your-subscription-id"
+Set-AzContext -Subscription "your-subscription-id"
 ```
 
-**Note**: The deployment script requires active Azure CLI authentication and will exit with clear instructions if you're not logged in.
+**Note**: The deployment script requires active Azure PowerShell authentication. All Azure operations use the PowerShell Az modules for consistency and reliability.
 
 ### Azure Services Created by Bicep Deployment
 
@@ -62,7 +100,24 @@ For Microsoft 365 integrations, you'll need:
 - **Microsoft Forms** - Permission to create forms in your organization
 - **Microsoft Teams** - Access to create workspaces and channels
 - **Microsoft Outlook/Exchange Online** - For email notifications
-- **Microsoft 365 Admin Permissions** - To authorize API connections
+
+**Permissions for M365 Connection Authorization:**
+
+When you authorize Microsoft 365 connections in VS Code (Step 4), you'll need:
+
+- **User Permissions** - Standard user account with access to:
+  - **Forms**: Ability to read form responses in your organization
+  - **Teams**: Permission to post messages to channels in teams you're a member of
+  - **Outlook**: Send email on your behalf
+
+- **Consent Flow** - During authorization, you'll be prompted to grant these delegated permissions:
+  - `Forms.Read.All` - Read forms and responses
+  - `ChannelMessage.Send` - Post messages to Teams channels
+  - `Mail.Send` - Send emails via Outlook
+  
+- **No Admin Consent Required** - These are delegated permissions (user-level), not application permissions
+- **Organization Policy** - Ensure your organization allows users to consent to apps accessing company data
+  - If user consent is disabled by your tenant admin, you'll need admin approval for the connections
 
 ## Deployment Instructions
 
@@ -363,19 +418,56 @@ cd Deployment/helpers
 #### 6.3 Deploy with VS Code
 
 1. **Open the Logic Apps workspace** in VS Code: `File` → `Open Folder` → Select `LogicApps` folder
-2. **Authorize Microsoft 365 Connections**: 
-   - Open the workflow in the designer (right-click `workflow.json` → `Open Designer`)
-   - You'll be prompted to sign in and authorize the Forms, Teams, and Outlook connections
-   - Grant the requested permissions for each connection
-3. **Deploy workflows**: See detailed instructions in `LogicApps/README.md` → "Next Steps: Deploy to Azure"
+2. **Deploy workflows**: See detailed instructions in `LogicApps/README.md` → "Next Steps: Deploy to Azure"
+   - Workflows will deploy with placeholder M365 connections (showing 'Invalid connection' initially)
+   - Connection authorization happens in the next step via Azure Portal
 
-**What happens during deployment**:
-- VS Code Azure Logic Apps extension automatically creates the connection authorization
-- Managed Identity permissions are configured for secure access
-- No manual portal configuration of connections is required
+#### 6.4 Authorize M365 Connections in Azure Portal
+
+**⚠️ Important**: The sample deploys with placeholder connections using user-assigned managed identity and On-Behalf-Of (OBO) agent connections. You must authorize these in the Azure Portal.
+
+**Steps to Authorize**:
+
+1. **Open Azure Portal** → Navigate to your Logic App resource
+2. **Open LoanApprovalAgent Workflow** → Click on the workflow in the left navigation
+3. **Identify Invalid Connections** → Actions with M365 connectors (Forms, Teams, Outlook) will show 'Invalid connection' messages
+4. **Authorize Each Connection**:
+   - Click on each action showing 'Invalid connection'
+   - At the bottom of the action blade, click **'Change connection'**
+   - Click **'Sign in'**
+   - Select the connection from the list
+   - For agent connections (Teams, Outlook), you'll see:
+     - **On-Behalf-Of (OBO) option** with 'Create as per-user connection' toggle
+     - Enable this OBO capability for agent connections
+   - Complete the OAuth consent flow to grant permissions
+5. **Repeat for All M365 Actions**:
+   - **Forms**: `When_a_new_response_is_submitted`, `Get_response_details`
+   - **Teams**: `Post_message_in_a_chat_or_channel`
+   - **Outlook**: Email actions
+6. **Save Workflow Changes** → Click 'Save' at the top to persist the authorized connections
+
+**What OBO Connections Enable**:
+- Agent connections act on behalf of the authenticated user
+- Managed Identity handles the Logic App's identity
+- User consent grants delegated permissions (Forms.Read.All, ChannelMessage.Send, Mail.Send)
+- No stored credentials - uses secure OAuth tokens
+
+**Verification**: After saving, the 'Invalid connection' messages will resolve, and the workflow is ready to run.
 
  
-### Step 7: End-to-End Testing
+### Step 7: Submit Test Form and Map Field IDs
+
+**🔗 Workflow Dependency**: *Captures form field IDs from actual workflow run* - After deploying and authorizing connections, submit one test form to trigger the workflow and extract field IDs.
+
+1. **Submit ONE test form** via Microsoft Forms with entry from `SAMPLE-DATA.md`
+2. **Run field mapping script** (see Step 6.2 for details):
+   ```powershell
+   cd Deployment/helpers
+   .\update-form-field-mappings.ps1 -LogicAppName "your-logic-app-name" -ResourceGroup "your-resource-group"
+   ```
+3. **Verify field mappings** were updated in workflow and app settings
+
+### Step 8: End-to-End Testing
 
 **🔗 Workflow Dependency**: *Validates everything works together* - Tests the complete flow: form submission → AI processing → Teams notification. Confirms all previous steps were configured correctly.
 
@@ -414,10 +506,12 @@ cd Deployment/helpers
 - Managed identity authentication is configured automatically - no passwords needed
 
 **Microsoft 365 Connection Issues**:
-- Connections are authorized automatically when you open the workflow in VS Code designer and deploy
-- Ensure you're using a Microsoft 365 account with proper licenses (Forms, Teams, Outlook)
-- If connections fail during deployment, re-open the workflow designer and complete the authorization flow
-- The VS Code Azure Logic Apps extension handles all OAuth and RBAC configuration automatically
+- **'Invalid connection' errors**: Follow Step 6.4 to authorize connections in Azure Portal
+- **OBO authorization required**: Agent connections (Teams, Outlook) must use On-Behalf-Of with 'Create as per-user connection' enabled
+- **Consent not appearing**: Ensure your organization allows user consent for apps (check tenant admin settings)
+- **Connection still invalid after authorization**: Save the workflow after changing connections
+- **Permissions denied**: Verify your M365 account has licenses for Forms, Teams, and Outlook
+- **User not found in Teams**: Add Logic App's managed identity as a member of the Teams team
 
 **Workflow Deployment Fails**:
 - Verify `local.settings.json` contains correct values from deployment

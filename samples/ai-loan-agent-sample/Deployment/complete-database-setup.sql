@@ -115,28 +115,33 @@ PRINT 'Granted execute permissions to your-logic-app-name';
 -- Verify the setup
 PRINT 'Verifying database setup...';
 
+-- Verification queries commented out to avoid table output in deployment logs
+-- Uncomment for manual troubleshooting if needed:
+
 -- Check table creation
-SELECT 
-    'CustomersBankHistory' as TableName,
-    COUNT(*) as RecordCount
-FROM CustomersBankHistory
-UNION ALL
-SELECT 
-    'AutoLoanSpecialVehicles' as TableName,
-    COUNT(*) as RecordCount  
-FROM AutoLoanSpecialVehicles;
+-- SELECT 
+--     'CustomersBankHistory' as TableName,
+--     COUNT(*) as RecordCount
+-- FROM CustomersBankHistory
+-- UNION ALL
+-- SELECT 
+--     'AutoLoanSpecialVehicles' as TableName,
+--     COUNT(*) as RecordCount  
+-- FROM AutoLoanSpecialVehicles;
 
 -- Check managed identity user and permissions
-SELECT 
-    dp.name AS principal_name,
-    dp.type_desc AS principal_type,
-    dp.authentication_type_desc AS authentication_type,
-    r.name AS role_name
-FROM sys.database_principals dp 
-LEFT JOIN sys.database_role_members rm ON dp.principal_id = rm.member_principal_id
-LEFT JOIN sys.database_principals r ON rm.role_principal_id = r.principal_id
-WHERE dp.name = 'your-logic-app-name'
-ORDER BY dp.name, r.name;
+-- SELECT 
+--     dp.name AS principal_name,
+--     dp.type_desc AS principal_type,
+--     dp.authentication_type_desc AS authentication_type,
+--     r.name AS role_name
+-- FROM sys.database_principals dp 
+-- LEFT JOIN sys.database_role_members rm ON dp.principal_id = rm.member_principal_id
+-- LEFT JOIN sys.database_principals r ON rm.role_principal_id = r.principal_id
+-- WHERE dp.name = 'your-logic-app-name'
+-- ORDER BY dp.name, r.name;
+
+PRINT 'Database setup complete! Tables created and managed identity configured.';
 
 PRINT '=== Database Setup Complete ===';
 PRINT 'Tables created with sample data';

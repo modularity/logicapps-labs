@@ -25,18 +25,74 @@ Write-Header "AI Loan Agent - Bicep Deployment"
 # ============================================================================
 Write-Header "Validating Prerequisites"
 
-# Check Azure CLI authentication
-$subscriptionId = az account show --query id --output tsv 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Not logged into Azure. Run: az login"
+# Check Azure PowerShell authentication
+try {
+    $context = Get-AzContext -ErrorAction Stop
+    if (-not $context) {
+        Write-Error "Not logged into Azure. Run: Connect-AzAccount"
+        exit 1
+    }
+    $subscriptionId = $context.Subscription.Id
+    Write-Status "Azure PowerShell authenticated: $subscriptionId"
+    
+    # Get current user for SQL admin
+    $currentUser = $context.Account.Id
+    $currentUserId = $null
+    
+    # Try Get-AzADUser first
+    try {
+        $adUser = Get-AzADUser -UserPrincipalName $currentUser -ErrorAction Stop
+        if ($adUser) {
+            $currentUserId = $adUser.Id
+        }
+    } catch {
+        Write-Info "Could not retrieve user from Get-AzADUser, trying token method..."
+    }
+    
+    # Fallback: Extract OID from access token
+    if (-not $currentUserId) {
+        try {
+            # Get token - will be SecureString in Az 14.0.0+, but we need plain string for JWT parsing
+            $graphToken = Get-AzAccessToken -ResourceUrl "https://graph.microsoft.com" -ErrorAction Stop
+            
+            # Handle both current string and future SecureString token formats
+            if ($graphToken.Token -is [System.Security.SecureString]) {
+                # Future Az version - convert SecureString to plain text for JWT parsing
+                $token = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
+                    [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($graphToken.Token))
+            } else {
+                # Current Az version - token is already a string
+                $token = $graphToken.Token
+            }
+            
+            $tokenParts = $token.Split('.')
+            if ($tokenParts.Count -ge 2) {
+                # Decode JWT payload (add padding if needed)
+                $payload = $tokenParts[1]
+                $paddingNeeded = 4 - ($payload.Length % 4)
+                if ($paddingNeeded -lt 4) {
+                    $payload += "=" * $paddingNeeded
+                }
+                $tokenPayload = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($payload))
+                $tokenJson = $tokenPayload | ConvertFrom-Json
+                $currentUserId = $tokenJson.oid
+            }
+        } catch {
+            Write-Warning "Could not extract user ID from token: $($_.Exception.Message)"
+        }
+    }
+    
+    if ($currentUserId) {
+        Write-Status "Current user: $currentUser ($currentUserId)"
+    } else {
+        Write-Error "Could not determine current user ID. Please ensure you have proper Azure AD permissions."
+        exit 1
+    }
+} catch {
+    Write-Error "Azure PowerShell authentication failed: $($_.Exception.Message)"
+    Write-Info "Run: Connect-AzAccount"
     exit 1
 }
-Write-Status "Azure CLI authenticated: $subscriptionId"
-
-# Get current user for SQL admin
-$currentUser = az account show --query user.name --output tsv
-$currentUserId = az ad signed-in-user show --query id --output tsv
-Write-Status "Current user: $currentUser ($currentUserId)"
 
 # ============================================================================
 # Step 2: Read Parameters from .bicepparam
@@ -75,9 +131,9 @@ Write-Status "Location: $location"
 # ============================================================================
 Write-Header "Creating Resource Group"
 
-$rgExists = az group exists --name $resourceGroup --output tsv
-if ($rgExists -eq "false") {
-    az group create --name $resourceGroup --location $location --output none
+$rg = Get-AzResourceGroup -Name $resourceGroup -ErrorAction SilentlyContinue
+if (-not $rg) {
+    New-AzResourceGroup -Name $resourceGroup -Location $location | Out-Null
     Write-Status "Resource group created: $resourceGroup"
 } else {
     Write-Status "Resource group exists: $resourceGroup"
@@ -134,9 +190,9 @@ Write-Info "Retrieving deployment outputs..."
 try {
     $outputs = $deployment.Outputs
     
-    Write-Status "Infrastructure deployed successfully"
+    Write-Status "Deployment outputs retrieved successfully"
     
-    # Extract outputs to variables (in memory only)
+    # Extract all outputs to variables
     $logicAppName = $outputs.logicAppName.Value
     $logicAppPrincipalId = $outputs.logicAppPrincipalId.Value
     $sqlServerName = $outputs.sqlServerName.Value
@@ -146,7 +202,9 @@ try {
     $openAIResourceId = $outputs.openAIResourceId.Value
     $apimServiceName = $outputs.apimServiceName.Value
     $apimBaseUrl = $outputs.apimBaseUrl.Value
-    $apimKeys = $outputs.apimSubscriptionKeys.Value
+    # Convert JObject to PowerShell object
+    $apimKeysJson = $outputs.apimSubscriptionKeys.Value.ToString()
+    $apimKeys = $apimKeysJson | ConvertFrom-Json
     $storageAccountName = $outputs.storageAccountName.Value
     $blobStorageAccountName = $outputs.blobStorageAccountName.Value
 } catch {
@@ -187,13 +245,14 @@ try {
     $currentIP = (Invoke-RestMethod -Uri "https://api.ipify.org" -ErrorAction Stop).Trim()
     Write-Info "Your IP address: $currentIP"
     
-    az sql server firewall-rule create `
-        --resource-group $resourceGroup `
-        --server $sqlServerName `
-        --name "ClientIP-$currentIP" `
-        --start-ip-address $currentIP `
-        --end-ip-address $currentIP `
-        --output none 2>$null
+    $firewallRule = Get-AzSqlServerFirewallRule -ResourceGroupName $resourceGroup -ServerName $sqlServerName -FirewallRuleName "ClientIP-$currentIP" -ErrorAction SilentlyContinue
+    if (-not $firewallRule) {
+        New-AzSqlServerFirewallRule -ResourceGroupName $resourceGroup `
+            -ServerName $sqlServerName `
+            -FirewallRuleName "ClientIP-$currentIP" `
+            -StartIpAddress $currentIP `
+            -EndIpAddress $currentIP | Out-Null
+    }
     
     Write-Status "SQL firewall rule added for your IP"
 } catch {
@@ -210,15 +269,25 @@ $sqlScriptPath = "$PSScriptRoot/complete-database-setup.sql"
 $sqlContent = Get-Content $sqlScriptPath -Raw
 $sqlContent = $sqlContent.Replace('your-logic-app-name', $logicAppName)
 
-# Try automated execution with Azure CLI access token (no MFA prompt)
-Write-Info "Attempting automated SQL setup using Azure CLI authentication..."
+# Try automated execution with Azure PowerShell access token (no MFA prompt)
+Write-Info "Attempting automated SQL setup using Azure PowerShell authentication..."
 
 try {
-    # Get access token for Azure SQL Database (uses existing az login session)
-    $tokenResponse = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv 2>&1
+    # Get access token for Azure SQL Database (uses existing PowerShell session)
+    # Handle both current string and future SecureString token formats
+    $sqlToken = Get-AzAccessToken -ResourceUrl "https://database.windows.net" -ErrorAction Stop
     
-    if ($LASTEXITCODE -eq 0 -and $tokenResponse) {
-        Write-Info "✓ Retrieved Azure SQL access token from Azure CLI session"
+    if ($sqlToken.Token -is [System.Security.SecureString]) {
+        # Future Az version - convert SecureString to plain text for SQL authentication
+        $tokenResponse = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
+            [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sqlToken.Token))
+    } else {
+        # Current Az version - token is already a string
+        $tokenResponse = $sqlToken.Token
+    }
+    
+    if ($tokenResponse) {
+        Write-Info "✓ Retrieved Azure SQL access token from PowerShell session"
         
         # Check if SqlServer module is available (provides Invoke-Sqlcmd)
         if (-not (Get-Module -ListAvailable -Name SqlServer)) {
@@ -233,7 +302,8 @@ try {
                       -Database $sqlDatabaseName `
                       -AccessToken $tokenResponse `
                       -Query $sqlContent `
-                      -ErrorAction Stop
+                      -ErrorAction Stop `
+                      -OutputSqlErrors $true
         
         Write-Status "✓ Database setup completed successfully (automated)"
         $sqlSetupSucceeded = $true
@@ -294,32 +364,44 @@ if (-not (Test-Path $policyDocPath)) {
     exit 1
 }
 
-# Upload to blob storage
-az storage blob upload `
-    --account-name $blobStorageAccountName `
-    --container-name policies `
-    --name loan-policy.txt `
-    --file $policyDocPath `
-    --auth-mode login `
-    --overwrite `
-    --output none
+# Get storage context
+$storageAccount = Get-AzStorageAccount -ResourceGroupName $resourceGroup -Name $blobStorageAccountName -ErrorAction Stop
+$storageContext = $storageAccount.Context
 
-Write-Status "Policy document uploaded to blob storage"
+# Upload to blob storage
+try {
+    Set-AzStorageBlobContent `
+        -File $policyDocPath `
+        -Container "policies" `
+        -Blob "loan-policy.txt" `
+        -Context $storageContext `
+        -Force `
+        -ErrorAction Stop | Out-Null
+    
+    Write-Status "✓ Policy document uploaded to blob storage"
+} catch {
+    Write-Error "Policy document upload failed: $($_.Exception.Message)"
+    exit 1
+}
 
 # Generate SAS URL (expires in 1 year)
-$expiryDate = (Get-Date).AddYears(1).ToString("yyyy-MM-ddTHH:mm:ssZ")
-$policySasUrl = az storage blob generate-sas `
-    --account-name $blobStorageAccountName `
-    --container-name policies `
-    --name loan-policy.txt `
-    --permissions r `
-    --expiry $expiryDate `
-    --full-uri `
-    --auth-mode key `
-    --output tsv
-
-Write-Status "SAS URL generated (expires: $expiryDate)"
-
+$expiryDate = (Get-Date).AddYears(1).ToUniversalTime()
+try {
+    $policySasToken = New-AzStorageBlobSASToken `
+        -Container "policies" `
+        -Blob "loan-policy.txt" `
+        -Permission r `
+        -ExpiryTime $expiryDate `
+        -Context $storageContext `
+        -ErrorAction Stop
+    
+    $policySasUrl = "https://$blobStorageAccountName.blob.core.windows.net/policies/loan-policy.txt$policySasToken"
+    Write-Status "✓ SAS URL generated (expires: $($expiryDate.ToString('yyyy-MM-ddTHH:mm:ssZ')))"
+} catch {
+    Write-Error "SAS URL generation failed"
+    exit 1
+}
+ 
 # ============================================================================
 # Step 10: Configure APIM Policies
 # ============================================================================
@@ -370,7 +452,7 @@ $localSettings = @{
         "creditCheckAPI_SubscriptionKey" = $apimKeys.creditCheck
         "demographicVerificationAPI_SubscriptionKey" = $apimKeys.demographics
         
-        # Policy Document
+        # Policy Document URLs
         "PolicyDocumentURL" = $policySasUrl
         "PolicyDocumentURI" = $policySasUrl
         "LoanPolicyDocumentUrl" = $policySasUrl
@@ -421,9 +503,11 @@ Write-Info "  OpenAI: $openAIResourceId"
 Write-Info "  APIM: $apimServiceName"
 Write-Info ""
 Write-Info "Next steps:"
-Write-Info "  1. Deploy workflows using VS Code (connection authorization handled automatically)"
-Write-Info "  2. Create Microsoft Form and update FormsFormId in local.settings.json"
-Write-Info "  3. Configure Teams Group/Channel IDs in local.settings.json"
-Write-Info "  4. Run update-form-field-mappings.ps1 after first form submission"
+Write-Info "  1. Create Microsoft Form and get Form ID from URL"
+Write-Info "  2. Update local.settings.json with FormsFormId, Teams Group/Channel IDs, and DemoUserEmail"
+Write-Info "  3. Deploy workflows from VS Code (LogicApps folder) - authorize connections when prompted"
+Write-Info "  4. Submit test form to get field IDs"
+Write-Info "  5. Run update-form-field-mappings.ps1 to populate FormFieldId_* values"
+Write-Info "  6. Validate end-to-end test scenarios"
 Write-Info ""
 Write-Info "See README.md for detailed post-deployment instructions"

@@ -99,6 +99,10 @@ module logicApp 'modules/logicapp.bicep' = {
   }
 }
 
+// NOTE: RBAC role assignment is NOT needed for APIM API invocation.
+// Logic App uses subscription keys (stored in app settings) to authenticate to APIM APIs.
+// Subscription keys are created per-API in apim-apis.bicep and passed to Logic App via deploy-bicep.ps1.
+
 // module connections 'modules/connections.bicep' = {
 //   name: 'connections-deployment'
 //   params: {
