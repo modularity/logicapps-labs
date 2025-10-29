@@ -9,9 +9,7 @@
     "riskAssessmentAPI_SubscriptionKey": "<Add your API Management subscription key>",
     "demographicVerificationAPI_SubscriptionKey": "<Add your API Management subscription key>",
     "WORKFLOWS_LOCATION_NAME": "eastus2",
-    "approvalAgent-policyDocument-URI": "<Add your policy document SAS URL>",
-    "PolicyDocumentURL": "<Add your policy document SAS URL>",
-    "PolicyDocumentURI": "<Add your policy document SAS URL>",
+    "azureblob_storageAccountName": "<Add your blob storage account name>",
     "employmentValidationAPI_SubscriptionKey": "<Add your API Management subscription key>",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "WORKFLOWS_SUBSCRIPTION_ID": "<Add your subscription ID>",
@@ -30,7 +28,7 @@
     "teams-ChannelId": "<Add your Teams channel ID>",
     "TeamsChannelId": "<Add your Teams channel ID>",
     "sql_connectionString": "<Add your SQL connection string>",
-    "agent_openAIEndpoint": "https://eastus2.api.cognitive.microsoft.com/",
+    "agent_openAIEndpoint": "Add your endpoint https://region.api.cognitive.microsoft.com/",
     "DemoUserEmail": "<Add your demo email address>"
   }
 }

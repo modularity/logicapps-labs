@@ -5,9 +5,13 @@ param storageAccountName string
 @description('Location for the storage account')
 param location string
 
+@description('Tags to apply to resources')
+param tags object = {}
+
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
+  tags: tags
   sku: {
     name: 'Standard_LRS'
   }
@@ -16,6 +20,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
     encryption: {
       services: {
         blob: {
@@ -33,5 +38,6 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 output name string = storageAccount.name
 output id string = storageAccount.id
 output primaryEndpoints object = storageAccount.properties.primaryEndpoints
-#disable-next-line outputs-should-not-contain-secrets
-output connectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+output blobUri string = storageAccount.properties.primaryEndpoints.blob
+output queueUri string = storageAccount.properties.primaryEndpoints.queue
+output tableUri string = storageAccount.properties.primaryEndpoints.table

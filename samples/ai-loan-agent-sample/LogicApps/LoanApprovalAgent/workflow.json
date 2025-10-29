@@ -35,15 +35,17 @@
                 "tools": {
                     "Get_loan_approval_policy": {
                         "actions": {
-                            "HTTP": {
-                                "type": "Http",
+                            "Get_blob_content": {
+                                "type": "ServiceProvider",
                                 "inputs": {
-                                    "uri": "@parameters('PolicyDocumentURL')",
-                                    "method": "GET"
-                                },
-                                "runtimeConfiguration": {
-                                    "contentTransfer": {
-                                        "transferMode": "Chunked"
+                                    "parameters": {
+                                        "containerName": "policies",
+                                        "blobName": "loan-policy.txt"
+                                    },
+                                    "serviceProviderConfiguration": {
+                                        "connectionName": "azureblob",
+                                        "operationId": "readBlob",
+                                        "serviceProviderId": "/serviceProviders/AzureBlob"
                                     }
                                 }
                             }
@@ -333,9 +335,6 @@
             "DemoUserEmail": {
                 "type": "string",
                 "defaultValue": "demo@example.com"
-            },
-            "PolicyDocumentURL": {
-                "type": "string"
             },
             "TeamsGroupId": {
                 "type": "string"

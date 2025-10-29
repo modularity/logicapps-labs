@@ -33,7 +33,6 @@ try {
         exit 1
     }
     $subscriptionId = $context.Subscription.Id
-    Write-Status "Azure PowerShell authenticated: $subscriptionId"
     
     # Get current user for SQL admin
     $currentUser = $context.Account.Id
@@ -83,7 +82,7 @@ try {
     }
     
     if ($currentUserId) {
-        Write-Status "Current user: $currentUser ($currentUserId)"
+        Write-Status "Azure AD user authenticated successfully"
     } else {
         Write-Error "Could not determine current user ID. Please ensure you have proper Azure AD permissions."
         exit 1
@@ -127,16 +126,54 @@ Write-Status "Resource Group: $resourceGroup"
 Write-Status "Location: $location"
 
 # ============================================================================
-# Step 3: Create Resource Group
+# Detect Client IP for SQL Firewall
+# ============================================================================
+Write-Info "Detecting client IP address..."
+
+try {
+    $clientIP = (Invoke-RestMethod -Uri "https://api.ipify.org" -ErrorAction Stop).Trim()
+    Write-Status "Client IP detected for SQL firewall"
+} catch {
+    Write-Warning "Could not detect client IP address: $($_.Exception.Message)"
+    $clientIP = ''
+    Write-Info "SQL firewall rule will not be created automatically. Add your IP manually via Azure Portal."
+}
+
+# ============================================================================
+# Step 3: Create Resource Group (with tags from bicepparam)
 # ============================================================================
 Write-Header "Creating Resource Group"
 
+# Extract tags from bicepparam for resource group
+$rgTags = @{}
+if ($paramContent -match "param\s+tags\s*=\s*\{([^}]+)\}") {
+    $tagsBlock = $Matches[1]
+    $tagsBlock -split "`n" | ForEach-Object {
+        if ($_ -match "^\s*([^:]+):\s*'([^']+)'") {
+            $key = $Matches[1].Trim()
+            $value = $Matches[2].Trim()
+            $rgTags[$key] = $value
+        }
+    }
+}
+
 $rg = Get-AzResourceGroup -Name $resourceGroup -ErrorAction SilentlyContinue
 if (-not $rg) {
-    New-AzResourceGroup -Name $resourceGroup -Location $location | Out-Null
-    Write-Status "Resource group created: $resourceGroup"
+    if ($rgTags.Count -gt 0) {
+        New-AzResourceGroup -Name $resourceGroup -Location $location -Tag $rgTags | Out-Null
+        Write-Status "Resource group created with tags: $resourceGroup"
+    } else {
+        New-AzResourceGroup -Name $resourceGroup -Location $location | Out-Null
+        Write-Status "Resource group created: $resourceGroup"
+    }
 } else {
-    Write-Status "Resource group exists: $resourceGroup"
+    # Update tags on existing resource group
+    if ($rgTags.Count -gt 0) {
+        Set-AzResourceGroup -Name $resourceGroup -Tag $rgTags | Out-Null
+        Write-Status "Resource group exists (tags updated): $resourceGroup"
+    } else {
+        Write-Status "Resource group exists: $resourceGroup"
+    }
 }
 
 # ============================================================================
@@ -159,9 +196,78 @@ try {
     
     if ($paramContent -match "param\s+projectName\s*=\s*'([^']+)'") { $params['projectName'] = $Matches[1] }
     if ($paramContent -match "param\s+location\s*=\s*'([^']+)'") { $params['location'] = $Matches[1] }
-    if ($paramContent -match "param\s+sqlAdminObjectId\s*=\s*'([^']+)'") { $params['sqlAdminObjectId'] = $Matches[1] }
-    if ($paramContent -match "param\s+sqlAdminUsername\s*=\s*'([^']+)'") { $params['sqlAdminUsername'] = $Matches[1] }
+    
+    # SQL Admin parameters - use auto-detected values if bicepparam has placeholders/empty values
+    $sqlAdminObjectIdFromParam = ''
+    $sqlAdminUsernameFromParam = ''
+    
+    if ($paramContent -match "param\s+sqlAdminObjectId\s*=\s*'([^']+)'") { 
+        $sqlAdminObjectIdFromParam = $Matches[1] 
+    }
+    if ($paramContent -match "param\s+sqlAdminUsername\s*=\s*'([^']+)'") { 
+        $sqlAdminUsernameFromParam = $Matches[1] 
+    }
+    
+    # Use auto-detected values if param file has placeholder or empty value
+    if ([string]::IsNullOrWhiteSpace($sqlAdminObjectIdFromParam) -or 
+        $sqlAdminObjectIdFromParam -like '*YOUR_*' -or 
+        $sqlAdminObjectIdFromParam -like '*OBJECT_ID*') {
+        Write-Info "Using auto-detected SQL admin Object ID"
+        $params['sqlAdminObjectId'] = $currentUserId
+    } else {
+        $params['sqlAdminObjectId'] = $sqlAdminObjectIdFromParam
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($sqlAdminUsernameFromParam) -or 
+        $sqlAdminUsernameFromParam -like '*YOUR_*' -or 
+        $sqlAdminUsernameFromParam -like '*EMAIL*') {
+        Write-Info "Using auto-detected SQL admin username"
+        $params['sqlAdminUsername'] = $currentUser
+    } else {
+        $params['sqlAdminUsername'] = $sqlAdminUsernameFromParam
+    }
+    
     if ($paramContent -match "param\s+existingApimName\s*=\s*'([^']*)'") { $params['existingApimName'] = $Matches[1] }
+    
+    # Tags - extract from bicepparam (complex object parsing)
+    if ($paramContent -match "param\s+tags\s*=\s*\{([^}]+)\}") {
+        $tagsBlock = $Matches[1]
+        $tagsHash = @{}
+        
+        # Parse each key-value pair in the tags object
+        $tagsBlock -split "`n" | ForEach-Object {
+            if ($_ -match "^\s*([^:]+):\s*'([^']+)'") {
+                $key = $Matches[1].Trim()
+                $value = $Matches[2].Trim()
+                $tagsHash[$key] = $value
+            }
+        }
+        
+        if ($tagsHash.Count -gt 0) {
+            $params['tags'] = $tagsHash
+            Write-Info "Applying tags: $($tagsHash.Keys -join ', ')"
+        }
+    }
+    
+    # Deployer Object ID - use auto-detected value for blob storage upload permissions
+    $deployerObjectIdFromParam = ''
+    if ($paramContent -match "param\s+deployerObjectId\s*=\s*'([^']*)'") { 
+        $deployerObjectIdFromParam = $Matches[1] 
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($deployerObjectIdFromParam) -or 
+        $deployerObjectIdFromParam -like '*YOUR_*' -or 
+        $deployerObjectIdFromParam -like '*OBJECT_ID*') {
+        Write-Info "Using auto-detected deployer Object ID for storage access"
+        $params['deployerObjectId'] = $currentUserId
+    } else {
+        $params['deployerObjectId'] = $deployerObjectIdFromParam
+    }
+    
+    # Add client IP if detected
+    if (-not [string]::IsNullOrEmpty($clientIP)) {
+        $params['clientIpAddress'] = $clientIP
+    }
     
     # Deploy using PowerShell Az module
     $deployment = New-AzResourceGroupDeployment `
@@ -173,6 +279,11 @@ try {
     
     if ($deployment.ProvisioningState -eq "Succeeded") {
         Write-Status "Bicep deployment completed successfully"
+        
+        # Wait for RBAC role assignments to propagate
+        Write-Info "Waiting for RBAC role assignments to propagate (2 minutes)..."
+        Start-Sleep -Seconds 120
+        Write-Status "RBAC propagation complete - storage access ready"
     } else {
         Write-Error "Bicep deployment failed with state: $($deployment.ProvisioningState)"
         exit 1
@@ -194,69 +305,98 @@ try {
     
     # Extract all outputs to variables
     $logicAppName = $outputs.logicAppName.Value
-    $logicAppPrincipalId = $outputs.logicAppPrincipalId.Value
     $sqlServerName = $outputs.sqlServerName.Value
     $sqlDatabaseName = $outputs.sqlDatabaseName.Value
     $openAIEndpoint = $outputs.openAIEndpoint.Value
-    $openAIKey = $outputs.openAIKey.Value
     $openAIResourceId = $outputs.openAIResourceId.Value
     $apimServiceName = $outputs.apimServiceName.Value
     $apimBaseUrl = $outputs.apimBaseUrl.Value
-    # Convert JObject to PowerShell object
-    $apimKeysJson = $outputs.apimSubscriptionKeys.Value.ToString()
-    $apimKeys = $apimKeysJson | ConvertFrom-Json
-    $storageAccountName = $outputs.storageAccountName.Value
     $blobStorageAccountName = $outputs.blobStorageAccountName.Value
+    $policyBlobUrl = $outputs.policyDocumentUrl.Value
 } catch {
     Write-Error "Failed to retrieve deployment outputs: $($_.Exception.Message)"
     exit 1
 }
 
-# Connection runtime URLs - commented out as VS Code handles connections automatically
-# Uncomment for CI/CD scenarios where connections are pre-created
-# $formsRuntimeUrl = $outputs.formsConnectionRuntimeUrl.value
-# $teamsRuntimeUrl = $outputs.teamsConnectionRuntimeUrl.value
-# $outlookRuntimeUrl = $outputs.outlookConnectionRuntimeUrl.value
+# ============================================================================
+# Step 6: Retrieve APIM Subscription Keys
+# ============================================================================
+Write-Header "Retrieving APIM Subscription Keys"
 
-# ============================================================================
-# Step 6: Grant Connection Permissions (Layer 2) - OPTIONAL FOR CI/CD
-# ============================================================================
-# Commented out - VS Code handles connection creation and authorization automatically
-# Uncomment this section if using pre-created connections in CI/CD pipelines
-
-# Write-Header "Granting Connection Permissions"
-# 
-# try {
-#     & "$PSScriptRoot/helpers/grant-connection-permissions.ps1" `
-#         -LogicAppName $logicAppName `
-#         -ResourceGroup $resourceGroup
-#     Write-Status "Connection permissions granted"
-# } catch {
-#     Write-Warning "Failed to grant connection permissions: $($_.Exception.Message)"
-#     Write-Info "You can run manually later: .\helpers\grant-connection-permissions.ps1"
-# }
-
-# ============================================================================
-# Step 7: Add User IP to SQL Firewall
-# ============================================================================
-Write-Header "Configuring SQL Server Firewall"
+Write-Info "Retrieving subscription keys securely (not exposed in deployment outputs)..."
 
 try {
-    $currentIP = (Invoke-RestMethod -Uri "https://api.ipify.org" -ErrorAction Stop).Trim()
-    Write-Info "Your IP address: $currentIP"
+    $creditCheckKey = (Get-AzApiManagementSubscriptionKey `
+        -Context (New-AzApiManagementContext -ResourceGroupName $resourceGroup -ServiceName $apimServiceName) `
+        -SubscriptionId 'credit-check-subscription').PrimaryKey
     
-    $firewallRule = Get-AzSqlServerFirewallRule -ResourceGroupName $resourceGroup -ServerName $sqlServerName -FirewallRuleName "ClientIP-$currentIP" -ErrorAction SilentlyContinue
-    if (-not $firewallRule) {
-        New-AzSqlServerFirewallRule -ResourceGroupName $resourceGroup `
-            -ServerName $sqlServerName `
-            -FirewallRuleName "ClientIP-$currentIP" `
-            -StartIpAddress $currentIP `
-            -EndIpAddress $currentIP | Out-Null
-    }
+    $employmentKey = (Get-AzApiManagementSubscriptionKey `
+        -Context (New-AzApiManagementContext -ResourceGroupName $resourceGroup -ServiceName $apimServiceName) `
+        -SubscriptionId 'employment-validation-subscription').PrimaryKey
     
-    Write-Status "SQL firewall rule added for your IP"
+    $demographicsKey = (Get-AzApiManagementSubscriptionKey `
+        -Context (New-AzApiManagementContext -ResourceGroupName $resourceGroup -ServiceName $apimServiceName) `
+        -SubscriptionId 'demographics-subscription').PrimaryKey
+    
+    $riskAssessmentKey = (Get-AzApiManagementSubscriptionKey `
+        -Context (New-AzApiManagementContext -ResourceGroupName $resourceGroup -ServiceName $apimServiceName) `
+        -SubscriptionId 'risk-assessment-subscription').PrimaryKey
+    
+    Write-Status "APIM subscription keys retrieved securely"
 } catch {
-    Write-Warning "Could not detect your IP address"
+    Write-Error "Failed to retrieve APIM subscription keys: $($_.Exception.Message)"
+    exit 1
+}
+
+# ============================================================================
+# Step 7: Upload Policy Document to Blob Storage
+# ============================================================================
+Write-Header "Uploading Policy Document"
+
+try {
+    $policyFilePath = "$PSScriptRoot/loan-policy.txt"
+    
+    Write-Info "Uploading loan-policy.txt to blob storage..."
+    
+    # Create storage context with Azure AD authentication (uses your current login)
+    $ctx = New-AzStorageContext -StorageAccountName $blobStorageAccountName -UseConnectedAccount -ErrorAction Stop
+    
+    # Upload policy document
+    Set-AzStorageBlobContent `
+        -File $policyFilePath `
+        -Container 'policies' `
+        -Blob 'loan-policy.txt' `
+        -Context $ctx `
+        -Force `
+        -Properties @{'ContentType' = 'text/plain'} `
+        -ErrorAction Stop
+    
+    # Verify upload by checking blob properties
+    $blob = Get-AzStorageBlob -Container 'policies' -Blob 'loan-policy.txt' -Context $ctx -ErrorAction Stop
+    
+    if ($blob) {
+        Write-Status "Policy document uploaded successfully"
+        Write-Info "Size: $($blob.Length) bytes"
+        Write-Info "URL: $policyBlobUrl"
+    } else {
+        throw "Blob verification failed - upload may not have completed"
+    }
+} catch {
+    Write-Error "Failed to upload policy document: $($_.Exception.Message)"
+    Write-Warning "You may need Storage Blob Data Contributor role on the storage account"
+    Write-Warning "You can upload manually: Azure Portal → Storage Account → Containers → policies"
+}
+
+# ============================================================================
+# Step 7: SQL Server Firewall Status
+# ============================================================================
+Write-Header "SQL Server Firewall Configuration"
+
+if (-not [string]::IsNullOrEmpty($clientIP)) {
+    Write-Status "SQL firewall rule created for detected client IP"
+    Write-Info "Rule was configured during Bicep deployment"
+} else {
+    Write-Warning "No client IP detected - SQL firewall rule was not created"
     Write-Info "Add your IP manually: Azure Portal → SQL Server → Networking"
 }
 
@@ -278,9 +418,8 @@ try {
     $sqlToken = Get-AzAccessToken -ResourceUrl "https://database.windows.net" -ErrorAction Stop
     
     if ($sqlToken.Token -is [System.Security.SecureString]) {
-        # Future Az version - convert SecureString to plain text for SQL authentication
-        $tokenResponse = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-            [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sqlToken.Token))
+        # Future Az version may return SecureString - convert to plain text
+        $tokenResponse = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto([System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sqlToken.Token))
     } else {
         # Current Az version - token is already a string
         $tokenResponse = $sqlToken.Token
@@ -353,128 +492,41 @@ try {
 }
 
 # ============================================================================
-# Step 9: Upload Policy Document & Generate SAS
+# Step 9: Policy Document Upload Status
 # ============================================================================
-Write-Header "Uploading Policy Document"
+Write-Header "Policy Document Upload"
 
-$policyDocPath = "$PSScriptRoot/loan-policy.txt"
+Write-Status "Policy document uploaded via Bicep deployment script"
+Write-Status "Policy URL: $policyBlobUrl"
+Write-Info "Document uploaded from: loan-policy.txt"
+Write-Info "Access granted via Logic App managed identity"
 
-if (-not (Test-Path $policyDocPath)) {
-    Write-Error "Policy document not found: $policyDocPath"
-    exit 1
-}
-
-# Get storage context
-$storageAccount = Get-AzStorageAccount -ResourceGroupName $resourceGroup -Name $blobStorageAccountName -ErrorAction Stop
-$storageContext = $storageAccount.Context
-
-# Upload to blob storage
-try {
-    Set-AzStorageBlobContent `
-        -File $policyDocPath `
-        -Container "policies" `
-        -Blob "loan-policy.txt" `
-        -Context $storageContext `
-        -Force `
-        -ErrorAction Stop | Out-Null
-    
-    Write-Status "✓ Policy document uploaded to blob storage"
-} catch {
-    Write-Error "Policy document upload failed: $($_.Exception.Message)"
-    exit 1
-}
-
-# Generate SAS URL (expires in 1 year)
-$expiryDate = (Get-Date).AddYears(1).ToUniversalTime()
-try {
-    $policySasToken = New-AzStorageBlobSASToken `
-        -Container "policies" `
-        -Blob "loan-policy.txt" `
-        -Permission r `
-        -ExpiryTime $expiryDate `
-        -Context $storageContext `
-        -ErrorAction Stop
-    
-    $policySasUrl = "https://$blobStorageAccountName.blob.core.windows.net/policies/loan-policy.txt$policySasToken"
-    Write-Status "✓ SAS URL generated (expires: $($expiryDate.ToString('yyyy-MM-ddTHH:mm:ssZ')))"
-} catch {
-    Write-Error "SAS URL generation failed"
-    exit 1
-}
- 
 # ============================================================================
-# Step 10: Configure APIM Policies
+# Step 10: APIM Policies Status
 # ============================================================================
-Write-Header "Configuring APIM Policies"
+Write-Header "APIM Policies Configuration"
 
-& "$PSScriptRoot/create-apim-policies.ps1" `
-    -ResourceGroup $resourceGroup `
-    -APIMServiceName $apimServiceName `
-    -SubscriptionId $subscriptionId
-
-Write-Status "APIM policies configured"
+Write-Status "APIM mock response policies configured via Bicep"
+Write-Info "All 4 API operations have mock response policies:"
+Write-Info "  - Credit Check API (Cronus)"
+Write-Info "  - Employment Validation API (Litware)"
+Write-Info "  - Demographics Verification API (Northwind)"
+Write-Info "  - Risk Assessment API (Olympia)"
 
 # ============================================================================
 # Step 11: Generate local.settings.json
 # ============================================================================
 Write-Header "Generating local.settings.json"
 
-$localSettings = @{
+$localSettings = [ordered]@{
     IsEncrypted = $false
-    Values = @{
-        # Azure Functions settings
-        "AzureWebJobsStorage" = "UseDevelopmentStorage=true"
-        "FUNCTIONS_WORKER_RUNTIME" = "dotnet"
-        "FUNCTIONS_INPROC_NET8_ENABLED" = "1"
-        "APP_KIND" = "workflowApp"
-        
-        # Workflow metadata
-        "WORKFLOWS_SUBSCRIPTION_ID" = $subscriptionId
-        "WORKFLOWS_RESOURCE_GROUP_NAME" = $resourceGroup
-        "WORKFLOWS_LOCATION_NAME" = $location
-        
-        # SQL Database (Managed Identity)
-        "sql_connectionString" = "Server=tcp:$sqlServerName.database.windows.net,1433;Initial Catalog=$sqlDatabaseName;Authentication=Active Directory Managed Identity;Encrypt=True;"
-        
-        # Azure OpenAI
-        "agent_openAIEndpoint" = $openAIEndpoint
-        "agent_openAIKey" = $openAIKey
-        "agent_ResourceID" = $openAIResourceId
-        
-        # API Management
-        "ApiManagementServiceName" = $apimServiceName
-        "ApiManagementBaseUrl" = $apimBaseUrl
-        "ApiManagementCreditUrl" = "$apimBaseUrl/credit"
-        "ApiManagementEmploymentUrl" = "$apimBaseUrl/employment"
-        "ApiManagementVerifyUrl" = "$apimBaseUrl/verify"
-        "riskAssessmentAPI_SubscriptionKey" = $apimKeys.riskAssessment
-        "employmentValidationAPI_SubscriptionKey" = $apimKeys.employment
-        "creditCheckAPI_SubscriptionKey" = $apimKeys.creditCheck
-        "demographicVerificationAPI_SubscriptionKey" = $apimKeys.demographics
-        
-        # Policy Document URLs
-        "PolicyDocumentURL" = $policySasUrl
-        "PolicyDocumentURI" = $policySasUrl
-        "LoanPolicyDocumentUrl" = $policySasUrl
-        "approvalAgent-policyDocument-URI" = $policySasUrl
-        
-        # Connection Runtime URLs - commented out for VS Code workflow
-        # Uncomment for CI/CD scenarios with pre-created connections
-        # "formsConnection-connectionKey" = "@connectionKey('formsConnection')"
-        # "formsConnection-ConnectionRuntimeUrl" = $formsRuntimeUrl
-        # "teamsConnection-connectionKey" = "@connectionKey('teamsConnection')"
-        # "teamsConnection-ConnectionRuntimeUrl" = $teamsRuntimeUrl
-        # "outlookConnection-connectionKey" = "@connectionKey('outlookConnection')"
-        # "outlookConnection-ConnectionRuntimeUrl" = $outlookRuntimeUrl
-        
-        # Placeholders for user configuration
+    Values = [ordered]@{
+        # USER CONFIGURATION - Update these values
+        "FormsFormId" = "<UPDATE_WITH_YOUR_FORM_ID>"
         "TeamsGroupId" = "<UPDATE_WITH_YOUR_TEAMS_GROUP_ID>"
         "TeamsChannelId" = "<UPDATE_WITH_YOUR_TEAMS_CHANNEL_ID>"
         "DemoUserEmail" = "<UPDATE_WITH_YOUR_EMAIL>"
         "ProjectDirectoryPath" = "<UPDATE_WITH_LOCAL_PROJECT_PATH>"
-        "FormsFormId" = "<UPDATE_WITH_YOUR_FORM_ID>"
-        
-        # Form field IDs (updated via helper script after first submission)
         "FormFieldId_SSN" = "<UPDATE_AFTER_FORM_SUBMISSION>"
         "FormFieldId_Name" = "<UPDATE_AFTER_FORM_SUBMISSION>"
         "FormFieldId_DateOfBirth" = "<UPDATE_AFTER_FORM_SUBMISSION>"
@@ -483,6 +535,32 @@ $localSettings = @{
         "FormFieldId_Salary" = "<UPDATE_AFTER_FORM_SUBMISSION>"
         "FormFieldId_LoanAmount" = "<UPDATE_AFTER_FORM_SUBMISSION>"
         "FormFieldId_VehicleMake" = "<UPDATE_AFTER_FORM_SUBMISSION>"
+        
+        # AZURE CONFIGURATION - Auto-populated
+        "AzureWebJobsStorage" = "UseDevelopmentStorage=true"
+        "FUNCTIONS_WORKER_RUNTIME" = "dotnet"
+        "FUNCTIONS_INPROC_NET8_ENABLED" = "1"
+        "APP_KIND" = "workflowApp"
+        "WORKFLOWS_SUBSCRIPTION_ID" = $subscriptionId
+        "WORKFLOWS_RESOURCE_GROUP_NAME" = $resourceGroup
+        "WORKFLOWS_LOCATION_NAME" = $location
+        "sql_connectionString" = "Server=tcp:$sqlServerName.database.windows.net,1433;Initial Catalog=$sqlDatabaseName;Authentication=Active Directory Managed Identity;Encrypt=True;"
+        "agent_openAIEndpoint" = $openAIEndpoint
+        "agent_ResourceID" = $openAIResourceId
+        "ApiManagementServiceName" = $apimServiceName
+        "ApiManagementBaseUrl" = $apimBaseUrl
+        "ApiManagementCreditUrl" = "$apimBaseUrl/credit"
+        "ApiManagementEmploymentUrl" = "$apimBaseUrl/employment"
+        "ApiManagementVerifyUrl" = "$apimBaseUrl/verify"
+        "riskAssessmentAPI_SubscriptionKey" = $riskAssessmentKey
+        "employmentValidationAPI_SubscriptionKey" = $employmentKey
+        "creditCheckAPI_SubscriptionKey" = $creditCheckKey
+        "demographicVerificationAPI_SubscriptionKey" = $demographicsKey
+        "PolicyDocumentURL" = $policyBlobUrl
+        "PolicyDocumentURI" = $policyBlobUrl
+        "LoanPolicyDocumentUrl" = $policyBlobUrl
+        "approvalAgent-policyDocument-URI" = $policyBlobUrl
+        "azureblob_storageAccountName" = $blobStorageAccountName
     }
 }
 

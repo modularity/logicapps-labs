@@ -15,10 +15,7 @@
     "type": "String",
     "value": "@appsetting('outlookConnection-ConnectionRuntimeUrl')"
   },
-  "PolicyDocumentURL": {
-    "type": "String",
-    "value": "@appsetting('PolicyDocumentURL')"
-  },
+
   "TeamsGroupId": {
     "type": "String",
     "value": "placeholder-group-id"

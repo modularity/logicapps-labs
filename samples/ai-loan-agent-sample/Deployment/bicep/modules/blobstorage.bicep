@@ -5,9 +5,13 @@ param blobStorageAccountName string
 @description('Location for the storage account')
 param location string
 
+@description('Tags to apply to resources')
+param tags object = {}
+
 resource blobStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: blobStorageAccountName
   location: location
+  tags: tags
   sku: {
     name: 'Standard_LRS'
   }
@@ -16,6 +20,7 @@ resource blobStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
     encryption: {
       services: {
         blob: {

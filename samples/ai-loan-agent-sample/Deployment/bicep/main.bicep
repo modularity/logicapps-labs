@@ -6,13 +6,27 @@ targetScope = 'resourceGroup'
 param projectName string
 
 @allowed([
+  // US Regions
+  'eastus'
   'eastus2'
+  'southcentralus'
+  // Europe
   'swedencentral'
-  'australiaeast'
-  'westus'
+  'francecentral'
+  'switzerlandnorth'
+  'uksouth'
   'northeurope'
+  'westeurope'
+  // Asia Pacific
+  'australiaeast'
+  'japaneast'
+  'eastasia'
+  // Canada
+  'canadaeast'
+  // Middle East
+  'uaenorth'
 ])
-@description('Azure region for resources. Must support OpenAI.')
+@description('Azure region for resources. Must support both OpenAI GPT-4 Turbo and Logic Apps Standard.')
 param location string = 'eastus2'
 
 @description('Current user Object ID for SQL Server Entra admin')
@@ -21,8 +35,17 @@ param sqlAdminObjectId string
 @description('Current user email/UPN for SQL Server Entra admin')
 param sqlAdminUsername string
 
+@description('Current user Object ID for blob storage access (for policy document upload)')
+param deployerObjectId string = ''
+
 @description('Optional: Name of existing APIM service to reuse')
 param existingApimName string = ''
+
+@description('Optional: Client IP address for SQL firewall rule')
+param clientIpAddress string = ''
+
+@description('Tags to apply to all resources')
+param tags object = {}
 
 // Generate consistent unique identifiers
 var subscriptionHash = uniqueString(subscription().subscriptionId, resourceGroup().id)
@@ -39,69 +62,104 @@ var blobStorageAccountName = toLower(take('${replace(projectName, '-', '')}blob$
 var sqlDatabaseName = '${projectName}-db'
 
 // Deploy modules
+module logicappIdentity 'modules/logicapp-identity.bicep' = {
+  name: 'loan-agent-sample-logicapp-identity-deployment'
+  params: {
+    identityName: '${logicAppName}-identity'
+    location: location
+    tags: tags
+  }
+}
+
 module storage 'modules/storage.bicep' = {
-  name: 'storage-deployment'
+  name: 'loan-agent-sample-storage-deployment'
   params: {
     storageAccountName: storageAccountName
     location: location
+    tags: tags
   }
 }
 
 module blobStorage 'modules/blobstorage.bicep' = {
-  name: 'blobstorage-deployment'
+  name: 'loan-agent-sample-blobstorage-deployment'
   params: {
     blobStorageAccountName: blobStorageAccountName
     location: location
+    tags: tags
   }
 }
 
 module sql 'modules/sql.bicep' = {
-  name: 'sql-deployment'
+  name: 'loan-agent-sample-sql-deployment'
   params: {
     sqlServerName: sqlServerName
     sqlDatabaseName: sqlDatabaseName
     location: location
     sqlAdminObjectId: sqlAdminObjectId
     sqlAdminUsername: sqlAdminUsername
+    clientIpAddress: clientIpAddress
+    tags: tags
   }
 }
 
 module openai 'modules/openai.bicep' = {
-  name: 'openai-deployment'
+  name: 'loan-agent-sample-openai-deployment'
   params: {
     openAIAccountName: openAIAccountName
     location: location
+    tags: tags
   }
 }
 
 module apim 'modules/apim.bicep' = {
-  name: 'apim-deployment'
+  name: 'loan-agent-sample-apim-deployment'
   params: {
     apimServiceName: apimServiceName
     location: location
     createNew: empty(existingApimName)
+    tags: tags
   }
 }
 
 module apimApis 'modules/apim-apis.bicep' = {
-  name: 'apim-apis-deployment'
+  name: 'loan-agent-sample-apim-apis-deployment'
   params: {
     apimServiceName: apim.outputs.serviceName
   }
 }
 
 module logicApp 'modules/logicapp.bicep' = {
-  name: 'logicapp-deployment'
+  name: 'loan-agent-sample-logicapp-deployment'
   params: {
     logicAppName: logicAppName
     location: location
-    storageConnectionString: storage.outputs.connectionString
+    logicAppRuntimeStorageIdentityId: logicappIdentity.outputs.id
+    storageBlobUri: storage.outputs.blobUri
+    storageQueueUri: storage.outputs.queueUri
+    storageTableUri: storage.outputs.tableUri
+    tags: tags
   }
 }
 
-// NOTE: RBAC role assignment is NOT needed for APIM API invocation.
-// Logic App uses subscription keys (stored in app settings) to authenticate to APIM APIs.
-// Subscription keys are created per-API in apim-apis.bicep and passed to Logic App via deploy-bicep.ps1.
+// Grant Logic App managed identity access to OpenAI
+module openaiRbac 'modules/openai-rbac.bicep' = {
+  name: 'loan-agent-sample-openai-rbac-deployment'
+  params: {
+    openAIAccountName: openai.outputs.accountName
+    logicAppPrincipalId: logicappIdentity.outputs.principalId
+  }
+}
+
+// Grant Logic App managed identity access to storage accounts
+module storageRbac 'modules/storage-rbac.bicep' = {
+  name: 'loan-agent-sample-storage-rbac-deployment'
+  params: {
+    storageAccountName: storage.outputs.name
+    blobStorageAccountName: blobStorage.outputs.name
+    logicAppPrincipalId: logicappIdentity.outputs.principalId
+    deployerObjectId: deployerObjectId
+  }
+}
 
 // module connections 'modules/connections.bicep' = {
 //   name: 'connections-deployment'
@@ -114,22 +172,16 @@ module logicApp 'modules/logicapp.bicep' = {
 
 // Outputs for PowerShell consumption
 output logicAppName string = logicApp.outputs.name
-output logicAppPrincipalId string = logicApp.outputs.principalId
+output logicAppPrincipalId string = logicappIdentity.outputs.principalId
 output sqlServerName string = sql.outputs.serverName
 output sqlDatabaseName string = sql.outputs.databaseName
 output openAIEndpoint string = openai.outputs.endpoint
-output openAIKey string = openai.outputs.key
 output openAIResourceId string = openai.outputs.resourceId
 output apimServiceName string = apim.outputs.serviceName
 output apimBaseUrl string = apim.outputs.gatewayUrl
-output apimSubscriptionKeys object = {
-  creditCheck: apimApis.outputs.creditCheckSubscriptionKey
-  employment: apimApis.outputs.employmentSubscriptionKey
-  demographics: apimApis.outputs.demographicsSubscriptionKey
-  riskAssessment: apimApis.outputs.riskAssessmentSubscriptionKey
-}
 output storageAccountName string = storage.outputs.name
 output blobStorageAccountName string = blobStorage.outputs.name
+output policyDocumentUrl string = 'https://${blobStorage.outputs.name}.blob.${environment().suffixes.storage}/policies/loan-policy.txt'
 // output formsConnectionId string = connections.outputs.formsConnectionId
 // output formsConnectionRuntimeUrl string = connections.outputs.formsRuntimeUrl
 // output teamsConnectionId string = connections.outputs.teamsConnectionId

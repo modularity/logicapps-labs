@@ -14,9 +14,16 @@ param sqlAdminObjectId string
 @description('Entra ID admin username')
 param sqlAdminUsername string
 
+@description('Client IP address for SQL firewall rule (optional)')
+param clientIpAddress string = ''
+
+@description('Tags to apply to resources')
+param tags object = {}
+
 resource sqlServer 'Microsoft.Sql/servers@2023-05-01-preview' = {
   name: sqlServerName
   location: location
+  tags: tags
   properties: {
     minimalTlsVersion: '1.2'
     publicNetworkAccess: 'Enabled'
@@ -41,10 +48,21 @@ resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2023-05-01-prev
   }
 }
 
+// Client IP firewall rule (if provided)
+resource clientIpFirewallRule 'Microsoft.Sql/servers/firewallRules@2023-05-01-preview' = if (!empty(clientIpAddress)) {
+  parent: sqlServer
+  name: 'ClientIP-${clientIpAddress}'
+  properties: {
+    startIpAddress: clientIpAddress
+    endIpAddress: clientIpAddress
+  }
+}
+
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-05-01-preview' = {
   parent: sqlServer
   name: sqlDatabaseName
   location: location
+  tags: tags
   sku: {
     name: 'Basic'
     tier: 'Basic'

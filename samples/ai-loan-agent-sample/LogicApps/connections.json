@@ -2,12 +2,11 @@
   "agentConnections": {
     "agent": {
       "displayName": "Azure OpenAI Agent",
-      "authentication": {
-        "type": "Key",
-        "key": "@appsetting('agent_openAIKey')"
-      },
       "endpoint": "@appsetting('agent_openAIEndpoint')",
       "resourceId": "@appsetting('agent_ResourceID')",
+      "authentication": {
+        "type": "ManagedServiceIdentity"
+      },
       "type": "model"
     }
   },
@@ -50,6 +49,16 @@
     }
   },
   "serviceProviderConnections": {
+    "azureblob": {
+      "parameterValues": {
+        "authProvider": "ManagedIdentity",
+        "storageAccountName": "@appsetting('azureblob_storageAccountName')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/AzureBlob"
+      },
+      "displayName": "Azure Blob Storage (Managed Identity)"
+    },
     "sql": {
       "parameterValues": {
         "connectionString": "@appsetting('sql_connectionString')"

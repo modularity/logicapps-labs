@@ -14,10 +14,14 @@ param publisherName string = 'Contoso'
 @description('Create new APIM or use existing')
 param createNew bool = true
 
+@description('Tags to apply to resources')
+param tags object = {}
+
 // Create new APIM service
 resource apimService 'Microsoft.ApiManagement/service@2022-08-01' = if (createNew) {
   name: apimServiceName
   location: location
+  tags: tags
   sku: {
     name: 'Developer'
     capacity: 1
