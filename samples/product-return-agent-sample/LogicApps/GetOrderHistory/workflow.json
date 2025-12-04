@@ -1,0 +1,47 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Order_Details": {
+        "type": "Compose",
+        "inputs": "@if(equals(triggerBody()?['orderId'], 'ORD001'), json('{\"orderId\": \"ORD001\", \"customerId\": \"CUST001\", \"product\": \"Coffee Maker Pro\", \"category\": \"electronics\", \"price\": 150, \"purchaseDate\": \"2024-11-19\", \"daysOld\": 15, \"condition\": \"unopened\"}'), if(equals(triggerBody()?['orderId'], 'ORD002'), json('{\"orderId\": \"ORD002\", \"customerId\": \"CUST002\", \"product\": \"Premium Coffee Beans\", \"category\": \"perishable\", \"price\": 89, \"purchaseDate\": \"2024-11-24\", \"daysOld\": 10, \"condition\": \"opened\"}'), if(equals(triggerBody()?['orderId'], 'ORD003'), json('{\"orderId\": \"ORD003\", \"customerId\": \"CUST003\", \"product\": \"Espresso Machine Deluxe\", \"category\": \"electronics\", \"price\": 450, \"purchaseDate\": \"2024-10-30\", \"daysOld\": 35, \"condition\": \"unopened\"}'), json('{\"orderId\": \"' + triggerBody()?['orderId'] + '\", \"error\": \"Order not found\"}'))))",
+        "runAfter": {}
+      },
+      "Response": {
+        "type": "Response",
+        "kind": "http",
+        "inputs": {
+          "statusCode": 200,
+          "body": "@outputs('Order_Details')"
+        },
+        "runAfter": {
+          "Order_Details": [
+            "SUCCEEDED"
+          ]
+        }
+      }
+    },
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "orderId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "orderId"
+            ]
+          }
+        }
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}

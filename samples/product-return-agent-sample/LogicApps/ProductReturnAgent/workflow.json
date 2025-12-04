@@ -1,0 +1,240 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Product_Return_Agent": {
+        "type": "Agent",
+        "inputs": {
+          "parameters": {
+            "deploymentId": "gpt-4o-mini",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You're an autonomous product return agent. Call ONE tool per turn. Steps: 1) Get return policy 2) Get order details 3) Get customer status 4) Calculate refund if needed 5) Decide and respond (or escalate to human if needed). After responding to customer, STOP."
+              },
+              {
+                "role": "user",
+                "content": "This is the return request - @{outputs('Return_Request_Summary')}"
+              }
+            ],
+            "agentModelType": "AzureOpenAI",
+            "agentModelSettings": {
+              "deploymentModelProperties": {
+                "name": "gpt-4o-mini",
+                "format": "OpenAI",
+                "version": "2024-07-18"
+              }
+            }
+          },
+          "modelConfigurations": {
+            "model1": {
+              "referenceName": "agent"
+            }
+          }
+        },
+        "tools": {
+          "Get_return_policy": {
+            "actions": {
+              "Return_Policy": {
+                "type": "Compose",
+                "inputs": "RETURN POLICY:\n- Standard customers: 30-day return window\n- VIP customers: 60-day return window\n- Perishable items (food, opened cosmetics): Non-returnable\n- Electronics: 20% restocking fee if opened\n- Defective items: Full refund, no fees\n- Changed mind: Refund minus shipping ($10)\n- Items over 60 days: Automatically rejected"
+              }
+            },
+            "description": "Get product return policy (call first)"
+          },
+          "Get_order_details": {
+            "actions": {
+              "Call_GetOrderHistory_Workflow": {
+                "type": "Workflow",
+                "inputs": {
+                  "host": {
+                    "workflow": {
+                      "id": "GetOrderHistory"
+                    }
+                  },
+                  "body": {
+                    "orderId": "@agentParameters('orderId')"
+                  }
+                }
+              }
+            },
+            "description": "Get order details including product, price, and purchase date",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {
+                "orderId": {
+                  "type": "string",
+                  "description": "Order ID"
+                }
+              },
+              "required": [
+                "orderId"
+              ]
+            }
+          },
+          "Get_customer_status": {
+            "actions": {
+              "Customer_Status": {
+                "type": "Compose",
+                "inputs": "@if(equals(agentParameters('customerId'), 'CUST003'), json('{\"customerId\": \"CUST003\", \"status\": \"VIP\", \"returnWindow\": 60}'), json('{\"customerId\": \"' + agentParameters('customerId') + '\", \"status\": \"Standard\", \"returnWindow\": 30}'))"
+              }
+            },
+            "description": "Get customer status (VIP or Standard) and return window",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {
+                "customerId": {
+                  "type": "string",
+                  "description": "Customer ID"
+                }
+              },
+              "required": [
+                "customerId"
+              ]
+            }
+          },
+          "Calculate_refund": {
+            "actions": {
+              "Call_CalculateRefund_Workflow": {
+                "type": "Workflow",
+                "inputs": {
+                  "host": {
+                    "workflow": {
+                      "id": "CalculateRefund"
+                    }
+                  },
+                  "body": {
+                    "orderTotal": "@agentParameters('orderTotal')",
+                    "reason": "@agentParameters('reason')",
+                    "category": "@agentParameters('category')",
+                    "condition": "@agentParameters('condition')"
+                  }
+                }
+              }
+            },
+            "description": "Calculate refund amount based on order total, reason, and product condition",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {
+                "orderTotal": {
+                  "type": "number",
+                  "description": "Original order total"
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "Return reason: defective, changed_mind, wrong_item"
+                },
+                "category": {
+                  "type": "string",
+                  "description": "Product category: electronics, perishable, other"
+                },
+                "condition": {
+                  "type": "string",
+                  "description": "Product condition: opened or unopened"
+                }
+              },
+              "required": [
+                "orderTotal",
+                "reason",
+                "category",
+                "condition"
+              ]
+            }
+          },
+          "Escalate_to_human": {
+            "actions": {
+              "Escalation_Response": {
+                "type": "Compose",
+                "inputs": {
+                  "status": "ESCALATED",
+                  "message": "This return request requires human review. A specialist will contact you within 24 hours.",
+                  "reason": "@agentParameters('escalationReason')"
+                }
+              }
+            },
+            "description": "Escalate complex cases to human review",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {
+                "escalationReason": {
+                  "type": "string",
+                  "description": "Reason for escalation"
+                }
+              },
+              "required": [
+                "escalationReason"
+              ]
+            }
+          }
+        },
+        "runAfter": {
+          "Return_Request_Summary": [
+            "SUCCEEDED"
+          ]
+        }
+      },
+      "Return_Request_Summary": {
+        "type": "Compose",
+        "inputs": {
+          "orderId": "@triggerBody()?['orderId']",
+          "customerId": "@triggerBody()?['customerId']",
+          "reason": "@triggerBody()?['reason']",
+          "description": "@triggerBody()?['description']",
+          "requestDate": "@utcNow()"
+        },
+        "runAfter": {}
+      },
+      "Response": {
+        "type": "Response",
+        "kind": "http",
+        "inputs": {
+          "statusCode": 200,
+          "body": {
+            "requestId": "@workflow().run.name",
+            "orderId": "@triggerBody()?['orderId']",
+            "agentDecision": "@outputs('Product_Return_Agent')",
+            "processedAt": "@utcNow()"
+          }
+        },
+        "runAfter": {
+          "Product_Return_Agent": [
+            "SUCCEEDED"
+          ]
+        }
+      }
+    },
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "orderId": {
+                "type": "string"
+              },
+              "customerId": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "orderId",
+              "customerId",
+              "reason"
+            ]
+          }
+        }
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {}
+  },
+  "kind": "Stateful"
+}
