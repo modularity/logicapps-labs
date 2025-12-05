@@ -90,17 +90,7 @@ Coffee maker reported as defective, within return window:
 {"orderId":"ORD001","customerId":"CUST001","reason":"defective","description":"Coffee maker stopped working after 10 days","imageData":"https://example.com/images/ORD001-product.jpg"}
 ```
 
-**Expected result:** `APPROVED` with full $150 refund, no fees
-
-**Agent flow:**
-1. Get return policy
-2. Get order details (ORD001: $150 coffee maker, 15 days old, unopened)
-3. Analyze product image (minor damage detected)
-4. Get return history (CUST001: 1 return, not flagged)
-5. Get customer status (Standard, 30-day window)
-6. Calculate refund (defective = full refund)
-7. Notify customer
-8. Approve return
+**Expected result:** `decision` = `"APPROVED"` with `refundAmount` = `150` in Product Return Agent action outputs, full refund for defective item
 
 </details>
 
@@ -113,28 +103,20 @@ Opened coffee beans, perishable item:
 {"orderId":"ORD002","customerId":"CUST002","reason":"changed_mind","description":"Don't like the flavor","imageData":"https://example.com/images/ORD002-product.jpg"}
 ```
 
-**Expected result:** `REJECTED` - perishable items cannot be returned once opened
-
-**Agent flow:**
-1. Get return policy
-2. Get order details (ORD002: $89 coffee beans, 10 days old, opened, perishable)
-3. Analyze product image (severe damage: package torn, contents exposed)
-4. Reject per policy (perishables non-returnable)
+**Expected result:** `decision` = `"REJECTED"` with `refundAmount` = `0` in Product Return Agent action outputs, perishable items cannot be returned once opened
 
 </details>
 
 <details>
-<summary><b>Test scenario 3: Past return window - Auto-rejection</b></summary>
+<summary><b>Test scenario 3: Order not found - Auto-rejection</b></summary>
 
-Order older than 60 days:
+Order doesn't exist in system:
 
 ```json
-{"orderId":"ORD999","customerId":"CUST001","reason":"changed_mind","description":"Too late to return","imageData":"https://example.com/images/ORD999-product.jpg"}
+{"orderId":"ORD005","customerId":"CUST004","reason":"changed_mind","description":"Want to return this item","imageData":"https://example.com/images/ORD005-product.jpg"}
 ```
 
-**Expected result:** `REJECTED` - outside return window
-
-**Note:** This tests the agent's ability to handle non-existent orders and enforce time limits.
+**Expected result:** `decision` = `"REJECTED"` with `refundAmount` = `0` in Product Return Agent action outputs, order not found
 
 </details>
 
@@ -147,15 +129,7 @@ Premium customer with excessive return history, expensive item:
 {"orderId":"ORD003","customerId":"CUST003","reason":"changed_mind","description":"Decided to get a different model","imageData":"https://example.com/images/ORD003-product.jpg"}
 ```
 
-**Expected result:** `ESCALATE` - Premium customer + excessive returns + expensive item requires manual review
-
-**Agent flow:**
-1. Get return policy
-2. Get order details (ORD003: $450 espresso machine, 35 days old, unopened)
-3. Analyze product image (no visible damage)
-4. Get return history (CUST003: 5 returns, FLAGGED for excessive returns)
-5. Get customer status (Premium tier, 60-day window)
-6. Escalate to human (premium customer + expensive item + fraud risk)
+**Expected result:** `decision` = `"ESCALATED"` with `refundAmount` = `0` in Product Return Agent action outputs. Agent log shows "Escalate_to_human" tool call for manual review.
 
 </details>
 
@@ -168,40 +142,7 @@ Opened electronics with restocking fee:
 {"orderId":"ORD004","customerId":"CUST001","reason":"changed_mind","description":"Found a better price elsewhere","imageData":"https://example.com/images/ORD004-opened.jpg"}
 ```
 
-**Expected result:** `APPROVED` with $120 refund (20% restocking fee = $30)
-
-**Agent flow:**
-1. Get return policy
-2. Get order details (ORD004: $150 coffee maker, electronics, opened)
-3. Analyze product image (minor wear, item has been used)
-4. Get return history (CUST001: 1 return, not flagged)
-5. Get customer status (Standard, 30-day window)
-6. Calculate refund (opened electronics = 20% restocking fee)
-7. Notify customer
-8. Approve with reduced refund
-
-</details>
-
-<details>
-<summary><b>Test scenario 6: Damaged shipping - Auto-approval</b></summary>
-
-Package damaged during shipping:
-
-```json
-{"orderId":"ORD005","customerId":"CUST004","reason":"damaged","description":"Package damaged in shipping","imageData":"https://example.com/images/ORD005-damaged-package.jpg"}
-```
-
-**Expected result:** `APPROVED` with full $120 refund, no fees
-
-**Agent flow:**
-1. Get return policy
-2. Get order details (ORD005: $120 coffee grinder, 20 days old, electronics, unopened)
-3. Analyze product image (moderate damage: packaging compromised)
-4. Get return history (CUST004: 0 returns, not flagged)
-5. Get customer status (Standard, 30-day window)
-6. Calculate refund (damaged = full refund)
-7. Notify customer
-8. Approve return
+**Expected result:** `decision` = `"APPROVED"` with `refundAmount` = `96` in Product Return Agent action outputs (20% restocking fee applied to $120 order)
 
 </details>
 
