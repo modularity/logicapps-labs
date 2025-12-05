@@ -4,7 +4,16 @@
     "actions": {
       "Order_Details": {
         "type": "Compose",
-        "inputs": "@if(equals(triggerBody()?['orderId'], 'ORD001'), json('{\"orderId\": \"ORD001\", \"customerId\": \"CUST001\", \"product\": \"Coffee Maker Pro\", \"category\": \"electronics\", \"price\": 150, \"purchaseDate\": \"2024-11-19\", \"daysOld\": 15, \"condition\": \"unopened\"}'), if(equals(triggerBody()?['orderId'], 'ORD002'), json('{\"orderId\": \"ORD002\", \"customerId\": \"CUST002\", \"product\": \"Premium Coffee Beans\", \"category\": \"perishable\", \"price\": 89, \"purchaseDate\": \"2024-11-24\", \"daysOld\": 10, \"condition\": \"opened\"}'), if(equals(triggerBody()?['orderId'], 'ORD003'), json('{\"orderId\": \"ORD003\", \"customerId\": \"CUST003\", \"product\": \"Espresso Machine Deluxe\", \"category\": \"electronics\", \"price\": 450, \"purchaseDate\": \"2024-10-30\", \"daysOld\": 35, \"condition\": \"unopened\"}'), json('{\"orderId\": \"' + triggerBody()?['orderId'] + '\", \"error\": \"Order not found\"}'))))",
+        "inputs": {
+          "orderId": "@triggerBody()?['orderId']",
+          "customerId": "@if(equals(triggerBody()?['orderId'], 'ORD001'), 'CUST001', if(equals(triggerBody()?['orderId'], 'ORD002'), 'CUST002', if(equals(triggerBody()?['orderId'], 'ORD003'), 'CUST003', if(equals(triggerBody()?['orderId'], 'ORD004'), 'CUST001', 'UNKNOWN'))))",
+          "product": "@if(equals(triggerBody()?['orderId'], 'ORD001'), 'Coffee Maker Pro', if(equals(triggerBody()?['orderId'], 'ORD002'), 'Premium Coffee Beans', if(equals(triggerBody()?['orderId'], 'ORD003'), 'Espresso Machine Deluxe', if(equals(triggerBody()?['orderId'], 'ORD004'), 'Coffee Grinder', 'Unknown Product'))))",
+          "category": "@if(equals(triggerBody()?['orderId'], 'ORD001'), 'electronics', if(equals(triggerBody()?['orderId'], 'ORD002'), 'perishable', if(equals(triggerBody()?['orderId'], 'ORD003'), 'electronics', if(equals(triggerBody()?['orderId'], 'ORD004'), 'electronics', 'other'))))",
+          "price": "@if(equals(triggerBody()?['orderId'], 'ORD001'), 150, if(equals(triggerBody()?['orderId'], 'ORD002'), 89, if(equals(triggerBody()?['orderId'], 'ORD003'), 450, if(equals(triggerBody()?['orderId'], 'ORD004'), 120, 0))))",
+          "purchaseDate": "@if(equals(triggerBody()?['orderId'], 'ORD001'), '2024-11-19', if(equals(triggerBody()?['orderId'], 'ORD002'), '2024-11-24', if(equals(triggerBody()?['orderId'], 'ORD003'), '2024-10-30', if(equals(triggerBody()?['orderId'], 'ORD004'), '2024-11-14', 'unknown'))))",
+          "daysOld": "@if(equals(triggerBody()?['orderId'], 'ORD001'), 15, if(equals(triggerBody()?['orderId'], 'ORD002'), 10, if(equals(triggerBody()?['orderId'], 'ORD003'), 35, if(equals(triggerBody()?['orderId'], 'ORD004'), 20, 0))))",
+          "condition": "@if(equals(triggerBody()?['orderId'], 'ORD001'), 'unopened', if(equals(triggerBody()?['orderId'], 'ORD002'), 'opened', if(equals(triggerBody()?['orderId'], 'ORD003'), 'unopened', if(equals(triggerBody()?['orderId'], 'ORD004'), 'opened', 'unknown'))))"
+        },
         "runAfter": {}
       },
       "Response": {
@@ -22,7 +31,7 @@
       }
     },
     "triggers": {
-      "When_a_HTTP_request_is_received": {
+      "manual": {
         "type": "Request",
         "kind": "Http",
         "inputs": {
@@ -32,10 +41,7 @@
               "orderId": {
                 "type": "string"
               }
-            },
-            "required": [
-              "orderId"
-            ]
+            }
           }
         }
       }

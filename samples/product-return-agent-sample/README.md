@@ -87,7 +87,7 @@ After deployment, test the agent with different return scenarios to see how it a
 Coffee maker reported as defective, within return window:
 
 ```json
-{"orderId":"ORD001","customerId":"CUST001","reason":"defective","description":"Coffee maker stopped working after 10 days"}
+{"orderId":"ORD001","customerId":"CUST001","reason":"defective","description":"Coffee maker stopped working after 10 days","imageData":"https://example.com/images/ORD001-product.jpg"}
 ```
 
 **Expected result:** `APPROVED` with full $150 refund, no fees
@@ -95,9 +95,12 @@ Coffee maker reported as defective, within return window:
 **Agent flow:**
 1. Get return policy
 2. Get order details (ORD001: $150 coffee maker, 15 days old, unopened)
-3. Get customer status (Standard, 30-day window)
-4. Calculate refund (defective = full refund)
-5. Approve return
+3. Analyze product image (minor damage detected)
+4. Get return history (CUST001: 1 return, not flagged)
+5. Get customer status (Standard, 30-day window)
+6. Calculate refund (defective = full refund)
+7. Notify customer
+8. Approve return
 
 </details>
 
@@ -107,7 +110,7 @@ Coffee maker reported as defective, within return window:
 Opened coffee beans, perishable item:
 
 ```json
-{"orderId":"ORD002","customerId":"CUST002","reason":"changed_mind","description":"Don't like the flavor"}
+{"orderId":"ORD002","customerId":"CUST002","reason":"changed_mind","description":"Don't like the flavor","imageData":"https://example.com/images/ORD002-product.jpg"}
 ```
 
 **Expected result:** `REJECTED` - perishable items cannot be returned once opened
@@ -115,7 +118,8 @@ Opened coffee beans, perishable item:
 **Agent flow:**
 1. Get return policy
 2. Get order details (ORD002: $89 coffee beans, 10 days old, opened, perishable)
-3. Reject per policy (perishables non-returnable)
+3. Analyze product image (severe damage: package torn, contents exposed)
+4. Reject per policy (perishables non-returnable)
 
 </details>
 
@@ -125,7 +129,7 @@ Opened coffee beans, perishable item:
 Order older than 60 days:
 
 ```json
-{"orderId":"ORD999","customerId":"CUST001","reason":"changed_mind","description":"Too late to return"}
+{"orderId":"ORD999","customerId":"CUST001","reason":"changed_mind","description":"Too late to return","imageData":"https://example.com/images/ORD999-product.jpg"}
 ```
 
 **Expected result:** `REJECTED` - outside return window
@@ -135,21 +139,23 @@ Order older than 60 days:
 </details>
 
 <details>
-<summary><b>Test scenario 4: VIP edge case - Escalation</b></summary>
+<summary><b>Test scenario 4: High-value fraud risk - Escalation</b></summary>
 
-VIP customer, day 35 (past standard window, within VIP window):
+Premium customer with excessive return history, expensive item:
 
 ```json
-{"orderId":"ORD003","customerId":"CUST003","reason":"changed_mind","description":"Decided to get a different model"}
+{"orderId":"ORD003","customerId":"CUST003","reason":"changed_mind","description":"Decided to get a different model","imageData":"https://example.com/images/ORD003-product.jpg"}
 ```
 
-**Expected result:** `ESCALATE` - VIP customer with expensive item near policy boundary
+**Expected result:** `ESCALATE` - Premium customer + excessive returns + expensive item requires manual review
 
 **Agent flow:**
 1. Get return policy
 2. Get order details (ORD003: $450 espresso machine, 35 days old, unopened)
-3. Get customer status (VIP, 60-day window)
-4. Escalate to human (high-value VIP case)
+3. Analyze product image (no visible damage)
+4. Get return history (CUST003: 5 returns, FLAGGED for excessive returns)
+5. Get customer status (Premium tier, 60-day window)
+6. Escalate to human (premium customer + expensive item + fraud risk)
 
 </details>
 
@@ -159,18 +165,43 @@ VIP customer, day 35 (past standard window, within VIP window):
 Opened electronics with restocking fee:
 
 ```json
-{"orderId":"ORD001","customerId":"CUST001","reason":"changed_mind","description":"Found a better price elsewhere"}
+{"orderId":"ORD004","customerId":"CUST001","reason":"changed_mind","description":"Found a better price elsewhere","imageData":"https://example.com/images/ORD004-opened.jpg"}
 ```
 
 **Expected result:** `APPROVED` with $120 refund (20% restocking fee = $30)
 
 **Agent flow:**
 1. Get return policy
-2. Get order details (ORD001: $150 coffee maker, electronics)
-3. Calculate refund (opened electronics = 20% restocking fee)
-4. Approve with reduced refund
+2. Get order details (ORD004: $150 coffee maker, electronics, opened)
+3. Analyze product image (minor wear, item has been used)
+4. Get return history (CUST001: 1 return, not flagged)
+5. Get customer status (Standard, 30-day window)
+6. Calculate refund (opened electronics = 20% restocking fee)
+7. Notify customer
+8. Approve with reduced refund
 
-**Note:** Agent interprets the order as opened based on reason and applies appropriate fees.
+</details>
+
+<details>
+<summary><b>Test scenario 6: Damaged shipping - Auto-approval</b></summary>
+
+Package damaged during shipping:
+
+```json
+{"orderId":"ORD005","customerId":"CUST004","reason":"damaged","description":"Package damaged in shipping","imageData":"https://example.com/images/ORD005-damaged-package.jpg"}
+```
+
+**Expected result:** `APPROVED` with full $120 refund, no fees
+
+**Agent flow:**
+1. Get return policy
+2. Get order details (ORD005: $120 coffee grinder, 20 days old, electronics, unopened)
+3. Analyze product image (moderate damage: packaging compromised)
+4. Get return history (CUST004: 0 returns, not flagged)
+5. Get customer status (Standard, 30-day window)
+6. Calculate refund (damaged = full refund)
+7. Notify customer
+8. Approve return
 
 </details>
 
@@ -196,8 +227,11 @@ Orchestrates return approval using an AI agent. The agent evaluates requests aga
 **Agent Tools:**
 - Get return policy - Retrieves return policy rules and conditions
 - Get order details - Fetches order information including product, price, purchase date
+- Analyze product image - Analyzes product photos to detect damage and assess condition
+- Get return history - Checks customer return patterns and fraud flags
 - Get customer status - Checks if customer is VIP (60-day window) or Standard (30-day window)
 - Calculate refund - Computes refund amount based on reason, category, and condition
+- Notify customer - Sends email notification with return decision and refund details
 - Escalate to human - Routes complex cases to human review
 
 **Process Flow:**
@@ -230,9 +264,11 @@ flowchart TD
 Retrieves mock order data including product details, purchase date, and age. Includes three pre-configured orders for testing.
 
 **Mock Orders:**
-- **ORD001**: Coffee Maker Pro ($150, 15 days old, electronics, unopened)
-- **ORD002**: Premium Coffee Beans ($89, 10 days old, perishable, opened)
-- **ORD003**: Espresso Machine Deluxe ($450, 35 days old, electronics, unopened, VIP customer)
+- **ORD001**: Coffee Maker Pro ($150, 15 days old, electronics, unopened, CUST001)
+- **ORD002**: Premium Coffee Beans ($89, 10 days old, perishable, opened, CUST002)
+- **ORD003**: Espresso Machine Deluxe ($450, 35 days old, electronics, unopened, CUST003 Premium)
+- **ORD004**: Coffee Grinder ($120, 20 days old, electronics, opened, CUST001)
+- **ORD005**: Coffee Grinder ($120, 20 days old, electronics, unopened, CUST004)
 
 ### CalculateRefund
 
@@ -285,6 +321,157 @@ This sample uses built-in test data to eliminate external dependencies. Here's h
 - Install Azure Logic Apps (Standard) VS Code extension
 - Edit workflow JSON files locally in LogicApps/ folder
 - Deploy changes using the extension
+
+---
+
+## How Tools Work
+
+The agent uses 8 specialized tools to autonomously evaluate return requests:
+
+### Core Analysis Tools
+
+| Tool | Implementation | Production Alternative |
+|------|----------------|------------------------|
+| **Analyze_product_image** | Mock image analysis simulating Azure AI Vision. Returns damage level, confidence score, and findings based on order ID pattern matching in the image URL. | [Azure AI Vision](https://learn.microsoft.com/azure/ai-services/computer-vision/) connector to analyze actual product photos using Computer Vision API for damage detection, object recognition, and quality assessment. |
+| **Get_return_history** | Hardcoded customer return patterns (CUST003 flagged for excessive returns). | SQL Database or Cosmos DB connector to query actual customer transaction history, combined with Azure Machine Learning for fraud detection patterns. |
+| **Notify_customer** | Generates mock notification response with email channel, timestamp, and message ID. | [Office 365 Outlook](https://learn.microsoft.com/connectors/office365/) connector for email notifications, [Azure Communication Services](https://learn.microsoft.com/azure/communication-services/) for SMS, or [Microsoft Teams](https://learn.microsoft.com/connectors/teams/) for in-app notifications. |
+
+### Supporting Tools
+
+- **Get_return_policy** - Static policy rules (replace with SharePoint or Blob Storage connector)
+- **Get_order_details** - Mock order database (replace with SQL Database, Cosmos DB, or ERP API)
+- **Get_customer_status** - Hardcoded Premium tier detection (replace with CRM connector like Dynamics 365 or Salesforce)
+- **Calculate_refund** - Formula-based logic (can remain as is or integrate with payment gateway APIs)
+- **Escalate_to_human** - Returns escalation message (replace with ServiceNow, Jira, or Teams for actual case creation)
+
+**Why mock data?** This sample prioritizes ease of deployment and exploration by eliminating external dependencies. All tools use `Compose` actions with conditional logic, allowing you to test the full agent workflow immediately after deployment without configuring databases, APIs, or third-party services.
+
+---
+
+## Demo Alignment
+
+This sample balances demonstration value with production readiness:
+
+| Component | Demo Implementation | Production Readiness | Notes |
+|-----------|---------------------|---------------------|-------|
+| **Agent orchestration** | ✅ Production-ready | Full Azure OpenAI agent with tool selection, reasoning, and autonomous decision-making | Core agent pattern is production-ready |
+| **Tool structure** | ✅ Production-ready | 8 specialized tools with proper schemas, descriptions, and parameter validation | Tool architecture matches production best practices |
+| **HTTP trigger** | ⚠️ Acceptable simplification | Manual HTTP trigger for testing | Replace with Event Grid, Service Bus, or API Management for production |
+| **Mock data sources** | ⚠️ Demo only | Hardcoded orders, customers, and analysis results | See [Extension Points](#extension-points) for production integrations |
+| **Error handling** | ⚠️ Basic implementation | Limited retry logic and error responses | Add comprehensive error handling, logging, and monitoring |
+| **Authentication** | ✅ Production-ready | Managed Identity with passwordless Azure OpenAI access | Enterprise-ready security pattern |
+| **Workflow definitions** | ✅ Production-ready | Standard Logic Apps workflow format with proper action composition | Can be version-controlled and CI/CD deployed |
+
+**Key Takeaway:** The agent reasoning, tool orchestration, and workflow structure are production-ready. The mock data and HTTP trigger are intentional simplifications for demo purposes and can be swapped with production connectors without changing the core agent logic.
+
+---
+
+## Extension Points
+
+Replace demo components with production-ready Azure services:
+
+### 1. Image Analysis (Analyze_product_image tool)
+
+**Current:** Mock analysis with pattern matching
+**Production options:**
+- **Azure AI Vision:** Add Computer Vision connector, call Analyze Image API with product photo URL
+- **Custom Vision:** Train custom model for product-specific damage detection
+- **Implementation:** Replace `Compose` action with HTTP action calling Vision API, parse JSON response for damage assessment
+
+```json
+// Replace mock Compose action with:
+{
+  "type": "Http",
+  "inputs": {
+    "method": "POST",
+    "uri": "https://YOUR-VISION-ENDPOINT/vision/v3.2/analyze",
+    "headers": {
+      "Ocp-Apim-Subscription-Key": "@parameters('visionApiKey')"
+    },
+    "body": {
+      "url": "@agentParameters('imageData')"
+    }
+  }
+}
+```
+
+### 2. Return History (Get_return_history tool)
+
+**Current:** Hardcoded customer patterns
+**Production options:**
+- **Azure SQL Database:** Query customer transaction history with SQL connector
+- **Cosmos DB:** NoSQL document store for customer profiles and return records
+- **Implementation:** Replace `Compose` action with SQL query or Cosmos DB lookup
+
+```sql
+-- Example SQL query:
+SELECT 
+  CustomerId,
+  COUNT(*) as ReturnCount,
+  CASE WHEN COUNT(*) > 5 THEN 1 ELSE 0 END as Flagged
+FROM Returns
+WHERE CustomerId = @customerId 
+  AND ReturnDate > DATEADD(month, -6, GETDATE())
+GROUP BY CustomerId
+```
+
+### 3. Customer Notifications (Notify_customer tool)
+
+**Current:** Mock notification response
+**Production options:**
+- **Office 365 Outlook:** Send personalized emails with refund details and return instructions
+- **Azure Communication Services:** Multi-channel notifications (email, SMS, WhatsApp)
+- **Microsoft Teams:** Send adaptive cards to customer service team channel
+- **Implementation:** Replace `Compose` action with Outlook connector or HTTP action calling Communication Services API
+
+```json
+// Replace mock Compose action with Outlook connector:
+{
+  "type": "ApiConnection",
+  "inputs": {
+    "host": {
+      "connection": {
+        "referenceName": "office365"
+      }
+    },
+    "method": "post",
+    "path": "/v2/Mail",
+    "body": {
+      "To": "@variables('customerEmail')",
+      "Subject": "Return Request Update - Order @{agentParameters('orderId')}",
+      "Body": "@agentParameters('message')"
+    }
+  }
+}
+```
+
+### 4. Order Database (GetOrderHistory workflow)
+
+**Current:** Static order records
+**Production options:**
+- **SQL Database:** Enterprise order management system
+- **SAP/Dynamics 365:** ERP system connectors
+- **Custom API:** REST API to existing order database
+- **Implementation:** Replace workflow with SQL query or HTTP connector to API
+
+### 5. Human Escalation (Escalate_to_human tool)
+
+**Current:** Returns escalation message
+**Production options:**
+- **ServiceNow:** Create incident ticket with return details
+- **Microsoft Teams:** Post adaptive card to support team channel with approve/reject actions
+- **Jira Service Management:** Create service request with customer context
+- **Implementation:** Replace `Compose` action with ServiceNow connector or Teams webhook
+
+### Quick Start: Add Real Email Notifications
+
+1. Add Office 365 Outlook connection to Logic App
+2. Edit `Notify_customer` tool in ProductReturnAgent workflow
+3. Replace `Notification_Result` Compose action with Outlook Send Email action
+4. Map agent parameters to email fields (To, Subject, Body)
+5. Test with your email address to verify delivery
+
+**No code changes needed** - the agent will automatically call the updated tool with the same parameters.
 
 ---
 

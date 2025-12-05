@@ -33,7 +33,7 @@
       }
     },
     "triggers": {
-      "When_a_HTTP_request_is_received": {
+      "manual": {
         "type": "Request",
         "kind": "Http",
         "inputs": {
@@ -52,13 +52,7 @@
               "condition": {
                 "type": "string"
               }
-            },
-            "required": [
-              "orderTotal",
-              "reason",
-              "category",
-              "condition"
-            ]
+            }
           }
         }
       }
