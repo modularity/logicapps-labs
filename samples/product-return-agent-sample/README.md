@@ -35,7 +35,7 @@ An AI-powered product return system that automates the evaluation of return requ
 | App Service Plan | Compute resources |
 | Managed Identity | Passwordless authentication |
 
-See [Deployment automation](#deployment-automation) and [Sample data approach](#sample-data-approach) for technical details.
+See [Deployment automation](#learn-more) and [Sample data approach](#learn-more) for technical details.
 
 </details>
 
@@ -77,7 +77,7 @@ After deployment, test the agent with different return scenarios to see how it a
 3. Paste one of the test payloads below > **Run** (returns success)
 4. Click **Refresh** > click the **Identifier** to open monitoring view
 5. In **Agent log** tab, review which tools the agent called
-6. In workflow, click **Product Return Agent** action > **Outputs** tab > verify decision
+6. In workflow, click **Product Return Agent** action > **Outputs** tab > verify `decision` and `refundAmount` fields
 
 **Test these scenarios to see different decision paths:**
 
@@ -154,6 +154,35 @@ Opened electronics with restocking fee:
 
 ---
 
+## Extend
+
+This sample uses built-in test data to eliminate external dependencies. Here's how to extend it for production use:
+
+### Replace demo services
+
+| Component | Demo Implementation | Production Options |
+|-----------|----------------------|-------------------|
+| Order Database | Static mock data (5 orders) | SQL Database, Cosmos DB, E-commerce API, ERP systems |
+| Customer Management | Hardcoded Premium status | CRM systems (Dynamics 365, Salesforce), Customer database |
+| Image Analysis | Pattern-matching mock | Azure AI Vision, Custom Vision for damage detection |
+| Refund Processing | Calculation only | Payment gateways (Stripe, PayPal), ERP systems |
+| Human Escalation | Compose action response | Microsoft Teams Adaptive Cards, ServiceNow, Jira |
+| Notifications | Template responses | Office 365 Outlook, SendGrid, Azure Communication Services |
+
+### Customize workflows
+
+**Option 1: Edit in Azure Portal**
+- Navigate to your Logic App > Workflows > select workflow > **Edit**
+- Use the visual designer to modify workflow logic
+- [Learn more about editing workflows in Azure Portal](https://learn.microsoft.com/azure/logic-apps/create-single-tenant-workflows-azure-portal)
+
+**Option 2: Edit in VS Code**
+- Follow setup instructions in [`LogicApps/README.md`](LogicApps/README.md)
+- Edit workflow JSON files locally
+- Deploy changes using Azure Logic Apps VS Code extension
+
+---
+
 ## Workflows
 
 Three workflows process product return requests using autonomous AI decision-making:
@@ -166,14 +195,14 @@ Three workflows process product return requests using autonomous AI decision-mak
 Orchestrates return approval using an AI agent. The agent evaluates requests against business rules, autonomously selecting and sequencing tools.
 
 **Agent Tools:**
-- Get return policy - Retrieves return policy rules and conditions
-- Get order details - Fetches order information including product, price, purchase date
-- Analyze product image - Analyzes product photos to detect damage and assess condition
-- Get return history - Checks customer return patterns and fraud flags
-- Get customer status - Checks if customer is VIP (60-day window) or Standard (30-day window)
-- Calculate refund - Computes refund amount based on reason, category, and condition
-- Notify customer - Sends email notification with return decision and refund details
-- Escalate to human - Routes complex cases to human review
+- **Get_return_policy** - Retrieves return policy rules and conditions
+- **Get_order_details** - Fetches order information including product, price, purchase date
+- **Analyze_product_image** - Analyzes product photos to detect damage and assess condition
+- **Get_return_history** - Checks customer return patterns and fraud flags
+- **Get_customer_status** - Checks if customer is Premium (60-day window) or Standard (30-day window)
+- **Calculate_refund** - Computes refund amount based on reason, category, and condition
+- **Notify_customer** - Sends email notification with return decision and refund details
+- **Escalate_to_human** - Routes complex cases to human review
 
 **Process Flow:**
 
@@ -202,22 +231,11 @@ flowchart TD
 
 ### GetOrderHistory
 
-Retrieves mock order data including product details, purchase date, and age. Includes three pre-configured orders for testing.
-
-**Mock Orders:**
-- **ORD001**: Coffee Maker Pro ($150, 15 days old, electronics, unopened, CUST001)
-- **ORD002**: Premium Coffee Beans ($89, 10 days old, perishable, opened, CUST002)
-- **ORD003**: Espresso Machine Deluxe ($450, 35 days old, electronics, unopened, CUST003 Premium)
-- **ORD004**: Coffee Grinder ($120, 20 days old, electronics, opened, CUST001)
-- **ORD005**: Coffee Grinder ($120, 20 days old, electronics, unopened, CUST004)
+Retrieves simulated order data including product details, purchase date, and condition. In production, this would integrate with e-commerce or ERP systems.
 
 ### CalculateRefund
 
-Computes refund amounts based on return reason, product category, and condition:
-- **Defective items**: Full refund, no fees
-- **Opened electronics**: 80% refund (20% restocking fee)
-- **Changed mind**: Refund minus $10 shipping fee
-- **Other reasons**: Full refund
+Evaluates refund amounts based on return reason, product category, and condition. Returns calculated refund following business rules for restocking fees and shipping charges.
 
 </details>
 
@@ -233,186 +251,6 @@ This sample uses Azure OpenAI with Managed Identity authentication for passwordl
 **Authentication:** System-Assigned Managed Identity with `Cognitive Services OpenAI User` role assigned to Azure OpenAI resource during deployment.
 
 </details>
-
----
-
-## Extend
-
-This sample uses built-in test data to eliminate external dependencies. Here's how to extend it for production use:
-
-### Replace demo services
-
-| Component | Demo Implementation | Production Options |
-|-----------|----------------------|-------------------|
-| Order Database | Static mock data (3 orders) | SQL Database, Cosmos DB, E-commerce API, ERP systems |
-| Customer Management | Hardcoded VIP status | CRM systems (Dynamics 365, Salesforce), Customer database |
-| Refund Processing | Calculation only | Payment gateways (Stripe, PayPal), ERP systems |
-| Human Escalation | Compose action response | Microsoft Teams, ServiceNow, Jira Service Management |
-| Notifications | Template responses | Email (Office 365, SendGrid), SMS (Twilio, Azure Communication Services) |
-| Policy Management | Hardcoded rules | SharePoint, Blob Storage, API Management |
-
-### Customize workflows
-
-**Option 1: Edit in Azure Portal**
-- Navigate to your Logic App > Workflows > select workflow > **Edit**
-- Use the visual designer to modify workflow logic
-- [Learn more about editing workflows in Azure Portal](https://learn.microsoft.com/azure/logic-apps/create-single-tenant-workflows-azure-portal)
-
-**Option 2: Edit in VS Code**
-- Install Azure Logic Apps (Standard) VS Code extension
-- Edit workflow JSON files locally in LogicApps/ folder
-- Deploy changes using the extension
-
----
-
-## How Tools Work
-
-The agent uses 8 specialized tools to autonomously evaluate return requests:
-
-### Core Analysis Tools
-
-| Tool | Implementation | Production Alternative |
-|------|----------------|------------------------|
-| **Analyze_product_image** | Mock image analysis simulating Azure AI Vision. Returns damage level, confidence score, and findings based on order ID pattern matching in the image URL. | [Azure AI Vision](https://learn.microsoft.com/azure/ai-services/computer-vision/) connector to analyze actual product photos using Computer Vision API for damage detection, object recognition, and quality assessment. |
-| **Get_return_history** | Hardcoded customer return patterns (CUST003 flagged for excessive returns). | SQL Database or Cosmos DB connector to query actual customer transaction history, combined with Azure Machine Learning for fraud detection patterns. |
-| **Notify_customer** | Generates mock notification response with email channel, timestamp, and message ID. | [Office 365 Outlook](https://learn.microsoft.com/connectors/office365/) connector for email notifications, [Azure Communication Services](https://learn.microsoft.com/azure/communication-services/) for SMS, or [Microsoft Teams](https://learn.microsoft.com/connectors/teams/) for in-app notifications. |
-
-### Supporting Tools
-
-- **Get_return_policy** - Static policy rules (replace with SharePoint or Blob Storage connector)
-- **Get_order_details** - Mock order database (replace with SQL Database, Cosmos DB, or ERP API)
-- **Get_customer_status** - Hardcoded Premium tier detection (replace with CRM connector like Dynamics 365 or Salesforce)
-- **Calculate_refund** - Formula-based logic (can remain as is or integrate with payment gateway APIs)
-- **Escalate_to_human** - Returns escalation message (replace with ServiceNow, Jira, or Teams for actual case creation)
-
-**Why mock data?** This sample prioritizes ease of deployment and exploration by eliminating external dependencies. All tools use `Compose` actions with conditional logic, allowing you to test the full agent workflow immediately after deployment without configuring databases, APIs, or third-party services.
-
----
-
-## Demo Alignment
-
-This sample balances demonstration value with production readiness:
-
-| Component | Demo Implementation | Production Readiness | Notes |
-|-----------|---------------------|---------------------|-------|
-| **Agent orchestration** | ✅ Production-ready | Full Azure OpenAI agent with tool selection, reasoning, and autonomous decision-making | Core agent pattern is production-ready |
-| **Tool structure** | ✅ Production-ready | 8 specialized tools with proper schemas, descriptions, and parameter validation | Tool architecture matches production best practices |
-| **HTTP trigger** | ⚠️ Acceptable simplification | Manual HTTP trigger for testing | Replace with Event Grid, Service Bus, or API Management for production |
-| **Mock data sources** | ⚠️ Demo only | Hardcoded orders, customers, and analysis results | See [Extension Points](#extension-points) for production integrations |
-| **Error handling** | ⚠️ Basic implementation | Limited retry logic and error responses | Add comprehensive error handling, logging, and monitoring |
-| **Authentication** | ✅ Production-ready | Managed Identity with passwordless Azure OpenAI access | Enterprise-ready security pattern |
-| **Workflow definitions** | ✅ Production-ready | Standard Logic Apps workflow format with proper action composition | Can be version-controlled and CI/CD deployed |
-
-**Key Takeaway:** The agent reasoning, tool orchestration, and workflow structure are production-ready. The mock data and HTTP trigger are intentional simplifications for demo purposes and can be swapped with production connectors without changing the core agent logic.
-
----
-
-## Extension Points
-
-Replace demo components with production-ready Azure services:
-
-### 1. Image Analysis (Analyze_product_image tool)
-
-**Current:** Mock analysis with pattern matching
-**Production options:**
-- **Azure AI Vision:** Add Computer Vision connector, call Analyze Image API with product photo URL
-- **Custom Vision:** Train custom model for product-specific damage detection
-- **Implementation:** Replace `Compose` action with HTTP action calling Vision API, parse JSON response for damage assessment
-
-```json
-// Replace mock Compose action with:
-{
-  "type": "Http",
-  "inputs": {
-    "method": "POST",
-    "uri": "https://YOUR-VISION-ENDPOINT/vision/v3.2/analyze",
-    "headers": {
-      "Ocp-Apim-Subscription-Key": "@parameters('visionApiKey')"
-    },
-    "body": {
-      "url": "@agentParameters('imageData')"
-    }
-  }
-}
-```
-
-### 2. Return History (Get_return_history tool)
-
-**Current:** Hardcoded customer patterns
-**Production options:**
-- **Azure SQL Database:** Query customer transaction history with SQL connector
-- **Cosmos DB:** NoSQL document store for customer profiles and return records
-- **Implementation:** Replace `Compose` action with SQL query or Cosmos DB lookup
-
-```sql
--- Example SQL query:
-SELECT 
-  CustomerId,
-  COUNT(*) as ReturnCount,
-  CASE WHEN COUNT(*) > 5 THEN 1 ELSE 0 END as Flagged
-FROM Returns
-WHERE CustomerId = @customerId 
-  AND ReturnDate > DATEADD(month, -6, GETDATE())
-GROUP BY CustomerId
-```
-
-### 3. Customer Notifications (Notify_customer tool)
-
-**Current:** Mock notification response
-**Production options:**
-- **Office 365 Outlook:** Send personalized emails with refund details and return instructions
-- **Azure Communication Services:** Multi-channel notifications (email, SMS, WhatsApp)
-- **Microsoft Teams:** Send adaptive cards to customer service team channel
-- **Implementation:** Replace `Compose` action with Outlook connector or HTTP action calling Communication Services API
-
-```json
-// Replace mock Compose action with Outlook connector:
-{
-  "type": "ApiConnection",
-  "inputs": {
-    "host": {
-      "connection": {
-        "referenceName": "office365"
-      }
-    },
-    "method": "post",
-    "path": "/v2/Mail",
-    "body": {
-      "To": "@variables('customerEmail')",
-      "Subject": "Return Request Update - Order @{agentParameters('orderId')}",
-      "Body": "@agentParameters('message')"
-    }
-  }
-}
-```
-
-### 4. Order Database (GetOrderHistory workflow)
-
-**Current:** Static order records
-**Production options:**
-- **SQL Database:** Enterprise order management system
-- **SAP/Dynamics 365:** ERP system connectors
-- **Custom API:** REST API to existing order database
-- **Implementation:** Replace workflow with SQL query or HTTP connector to API
-
-### 5. Human Escalation (Escalate_to_human tool)
-
-**Current:** Returns escalation message
-**Production options:**
-- **ServiceNow:** Create incident ticket with return details
-- **Microsoft Teams:** Post adaptive card to support team channel with approve/reject actions
-- **Jira Service Management:** Create service request with customer context
-- **Implementation:** Replace `Compose` action with ServiceNow connector or Teams webhook
-
-### Quick Start: Add Real Email Notifications
-
-1. Add Office 365 Outlook connection to Logic App
-2. Edit `Notify_customer` tool in ProductReturnAgent workflow
-3. Replace `Notification_Result` Compose action with Outlook Send Email action
-4. Map agent parameters to email fields (To, Subject, Body)
-5. Test with your email address to verify delivery
-
-**No code changes needed** - the agent will automatically call the updated tool with the same parameters.
 
 ---
 
@@ -453,8 +291,9 @@ The Deploy to Azure button uses a two-stage process:
 <summary><b>Sample data approach</b></summary>
 
 This sample uses built-in test data to simplify exploration:
-- **Order database:** `Compose` actions with 3 mock orders
-- **Customer status:** Hardcoded VIP detection
+- **Order database:** `Compose` actions with 5 mock orders
+- **Customer status:** Hardcoded Premium detection
+- **Image analysis:** Pattern-matching mock
 - **Refund calculation:** Formula-based logic
 - **Human escalation:** Conditional logic (no Teams integration)
 
