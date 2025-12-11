@@ -1,3 +1,6 @@
+// Auto-generated from shared/templates/main.bicep.template
+// To customize: edit this file directly or delete to regenerate from template
+//
 // AI Product Return Agent - Azure Infrastructure as Code
 // Deploys Logic Apps Standard with Azure OpenAI for autonomous product return decisions
 // Uses managed identity exclusively (no secrets/connection strings)
@@ -9,6 +12,9 @@ targetScope = 'resourceGroup'
 @maxLength(60)
 param BaseName string
 
+@description('Override for testing before merge')
+param workflowsZipUrl string = 'https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/product-return-agent-sample/Deployment/workflows.zip'
+
 // uniqueSuffix for when we need unique values
 var uniqueSuffix = uniqueString(resourceGroup().id)
 
@@ -19,8 +25,8 @@ resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
 }
 
 // Storage Account for workflow runtime
-module storage 'modules/storage.bicep' = {
-  name: '${BaseName}-storage-deployment'
+module storage '../../shared/modules/storage.bicep' = {
+  name: '${BaseName}-st'
   params: {
     storageAccountName: toLower(take(replace('${take(BaseName, 16)}${uniqueSuffix}', '-', ''), 24))
     location: resourceGroup().location
@@ -28,8 +34,8 @@ module storage 'modules/storage.bicep' = {
 }
 
 // Azure OpenAI with gpt-4o-mini model
-module openai 'modules/openai.bicep' = {
-  name: '${BaseName}-openai-deployment'
+module openai '../../shared/modules/openai.bicep' = {
+  name: '${BaseName}-ai'
   params: {
     openAIName: '${take(BaseName, 54)}-openai'
     location: resourceGroup().location
@@ -37,8 +43,8 @@ module openai 'modules/openai.bicep' = {
 }
 
 // Logic Apps Standard with dual managed identities
-module logicApp 'modules/logicapp.bicep' = {
-  name: '${BaseName}-logicapp-deployment'
+module logicApp '../../shared/modules/logicapp.bicep' = {
+  name: '${BaseName}-la'
   params: {
     logicAppName: '${take(BaseName, 22)}${uniqueSuffix}'
     location: resourceGroup().location
@@ -50,37 +56,29 @@ module logicApp 'modules/logicapp.bicep' = {
 }
 
 // RBAC: Logic App → Storage (Blob, Queue, Table Contributor roles)
-// dependsOn ensures RBAC is assigned after all resources exist (important for incremental deployments)
-module storageRbac 'modules/storage-rbac.bicep' = {
-  name: '${BaseName}-storage-rbac-deployment'
+module storageRbac '../../shared/modules/storage-rbac.bicep' = {
+  name: '${BaseName}-str'
   params: {
     storageAccountName: storage.outputs.storageAccountName
     logicAppPrincipalId: userAssignedIdentity.properties.principalId
   }
   dependsOn: [
-    storage
-    userAssignedIdentity
     logicApp
   ]
 }
 
 // RBAC: Logic App → Azure OpenAI (Cognitive Services User role)
-// dependsOn ensures RBAC is assigned after all resources exist (important for incremental deployments)
-module openaiRbac 'modules/openai-rbac.bicep' = {
-  name: '${BaseName}-openai-rbac-deployment'
+module openaiRbac '../../shared/modules/openai-rbac.bicep' = {
+  name: '${BaseName}-air'
   params: {
     openAIName: openai.outputs.name
     logicAppPrincipalId: logicApp.outputs.systemAssignedPrincipalId
   }
-  dependsOn: [
-    openai
-    logicApp
-  ]
 }
 
 // Deploy workflows using deployment script with RBAC
-module workflowDeployment 'modules/deployment-script.bicep' = {
-  name: '${BaseName}-workflow-deployment'
+module workflowDeployment '../../shared/modules/deployment-script.bicep' = {
+  name: '${BaseName}-wf'
   params: {
     deploymentScriptName: '${BaseName}-deploy-workflows'
     location: resourceGroup().location
@@ -88,13 +86,11 @@ module workflowDeployment 'modules/deployment-script.bicep' = {
     deploymentIdentityPrincipalId: userAssignedIdentity.properties.principalId
     logicAppName: logicApp.outputs.name
     resourceGroupName: resourceGroup().name
-    workflowsZipUrl: 'https://raw.githubusercontent.com/modularity/logicapps-labs/product-return-sample/samples/product-return-agent-sample/1ClickDeploy/workflows.zip'
+    workflowsZipUrl: workflowsZipUrl
   }
   dependsOn: [
     storageRbac
     openaiRbac
-    logicApp
-    userAssignedIdentity
   ]
 }
 

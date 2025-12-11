@@ -280,7 +280,7 @@
         "kind": "Http",
         "inputs": {
           "statusCode": 200,
-          "body": "@body('Product_Return_Agent')"
+          "body": "@outputs('Product_Return_Agent')?['lastAssistantMessage']"
         },
         "runAfter": {
           "Product_Return_Agent": [

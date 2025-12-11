@@ -12,7 +12,7 @@ An AI-powered product return system that automates the evaluation of return requ
 
 **Deploy to your Azure subscription:**
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmodularity%2Flogicapps-labs%2Fproduct-return-sample%2Fsamples%2Fproduct-return-agent-sample%2F1ClickDeploy%2Fsample-arm.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmodularity%2Flogicapps-labs%2Fproduct-return-sample%2Fsamples%2Fproduct-return-agent-sample%2FDeployment%2Fsample-arm.json)
 
 <details>
 <summary><b>What happens when you deploy</b></summary>
@@ -275,9 +275,9 @@ This sample uses Azure OpenAI with Managed Identity authentication for passwordl
 
 The Deploy to Azure button uses a two-stage process:
 
-**Build** (manual via [`BundleAssets.ps1`](1ClickDeploy/BundleAssets.ps1)):
-- Compiles [Bicep modules](Deployment/infrastructure/) → [`sample-arm.json`](1ClickDeploy/sample-arm.json)
-- Bundles [workflow definitions](LogicApps/) → [`workflows.zip`](1ClickDeploy/workflows.zip)
+**Build** (manual via [`BundleAssets.ps1`](../shared/scripts/BundleAssets.ps1)):
+- Compiles [Bicep template](Deployment/main.bicep) → [`sample-arm.json`](Deployment/sample-arm.json)
+- Bundles [workflow definitions](LogicApps/) → [`workflows.zip`](Deployment/workflows.zip)
 
 **Deploy** (automated):
 - [ARM (Azure Resource Manager)](https://learn.microsoft.com/azure/azure-resource-manager/templates/overview) template provisions Azure resources
