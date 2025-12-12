@@ -15,8 +15,8 @@ param BaseName string
 // uniqueSuffix for when we need unique values
 var uniqueSuffix = uniqueString(resourceGroup().id)
 
-// URL to workflows.zip (replaced by BundleAssets.ps1 with https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/ai-loan-agent-sample/Deployment/workflows.zip)
-var workflowsZipUrl = 'https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/ai-loan-agent-sample/Deployment/workflows.zip'
+// URL to workflows.zip (replaced by BundleAssets.ps1 with https://raw.githubusercontent.com/modularity/logicapps-labs/product-return-sample/samples/ai-loan-agent-sample/Deployment/workflows.zip)
+var workflowsZipUrl = 'https://raw.githubusercontent.com/modularity/logicapps-labs/product-return-sample/samples/ai-loan-agent-sample/Deployment/workflows.zip'
 
 // User-Assigned Managed Identity for Logic App → Storage authentication
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {

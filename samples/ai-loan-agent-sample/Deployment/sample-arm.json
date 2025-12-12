@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.34.44.8038",
-      "templateHash": "1314364949486763622"
+      "templateHash": "10138016752651397327"
     }
   },
   "parameters": {
@@ -20,7 +20,7 @@
   },
   "variables": {
     "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
-    "workflowsZipUrl": "https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/ai-loan-agent-sample/Deployment/workflows.zip"
+    "workflowsZipUrl": "https://raw.githubusercontent.com/modularity/logicapps-labs/product-return-sample/samples/ai-loan-agent-sample/Deployment/workflows.zip"
   },
   "resources": [
     {
