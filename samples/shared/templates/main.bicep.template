@@ -12,11 +12,11 @@ targetScope = 'resourceGroup'
 @maxLength(60)
 param BaseName string
 
-@description('Override for testing before merge')
-param workflowsZipUrl string = 'https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/product-return-agent-sample/Deployment/workflows.zip'
-
 // uniqueSuffix for when we need unique values
 var uniqueSuffix = uniqueString(resourceGroup().id)
+
+// URL to workflows.zip (replaced by BundleAssets.ps1 with {{WORKFLOWS_ZIP_URL}})
+var workflowsZipUrl = '{{WORKFLOWS_ZIP_URL}}'
 
 // User-Assigned Managed Identity for Logic App → Storage authentication
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {

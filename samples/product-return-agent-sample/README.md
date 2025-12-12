@@ -276,7 +276,7 @@ This sample uses Azure OpenAI with Managed Identity authentication for passwordl
 The Deploy to Azure button uses a two-stage process:
 
 **Build** (manual via [`BundleAssets.ps1`](../shared/scripts/BundleAssets.ps1)):
-- Compiles [Bicep template](Deployment/main.bicep) → [`sample-arm.json`](Deployment/sample-arm.json)
+- Compiles [Bicep modules](../shared/modules/) → [`sample-arm.json`](Deployment/sample-arm.json)
 - Bundles [workflow definitions](LogicApps/) → [`workflows.zip`](Deployment/workflows.zip)
 
 **Deploy** (automated):

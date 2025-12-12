@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.34.44.8038",
-      "templateHash": "3365536305158294435"
+      "templateHash": "7957044132973423253"
     }
   },
   "parameters": {
@@ -17,23 +17,24 @@
         "description": "Base name used for the resources that will be deployed (alphanumerics and hyphens only)"
       }
     },
-    "workflowsZipUrl": {
+    "location": {
       "type": "string",
-      "defaultValue": "https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/product-return-agent-sample/Deployment/workflows.zip",
+      "defaultValue": "[resourceGroup().location]",
       "metadata": {
-        "description": "Override for testing before merge"
+        "description": "Azure region for resource deployment"
       }
     }
   },
   "variables": {
-    "uniqueSuffix": "[uniqueString(resourceGroup().id)]"
+    "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
+    "workflowsZipUrl": "https://raw.githubusercontent.com/Azure/logicapps-labs/main/samples/product-return-agent-sample/Deployment/workflows.zip"
   },
   "resources": [
     {
       "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
       "apiVersion": "2023-01-31",
       "name": "[format('{0}-managedidentity', take(parameters('BaseName'), 60))]",
-      "location": "[resourceGroup().location]"
+      "location": "[parameters('location')]"
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -49,7 +50,7 @@
             "value": "[toLower(take(replace(format('{0}{1}', take(parameters('BaseName'), 16), variables('uniqueSuffix')), '-', ''), 24))]"
           },
           "location": {
-            "value": "[resourceGroup().location]"
+            "value": "[parameters('location')]"
           }
         },
         "template": {
@@ -133,7 +134,7 @@
             "value": "[format('{0}-openai', take(parameters('BaseName'), 54))]"
           },
           "location": {
-            "value": "[resourceGroup().location]"
+            "value": "[parameters('location')]"
           }
         },
         "template": {
@@ -226,7 +227,7 @@
             "value": "[format('{0}{1}', take(parameters('BaseName'), 22), variables('uniqueSuffix'))]"
           },
           "location": {
-            "value": "[resourceGroup().location]"
+            "value": "[parameters('location')]"
           },
           "storageAccountName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-storage-deployment', take(parameters('BaseName'), 43))), '2022-09-01').outputs.storageAccountName.value]"
@@ -585,7 +586,7 @@
             "value": "[format('{0}-deploy-workflows', parameters('BaseName'))]"
           },
           "location": {
-            "value": "[resourceGroup().location]"
+            "value": "[parameters('location')]"
           },
           "userAssignedIdentityId": {
             "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-managedidentity', take(parameters('BaseName'), 60)))]"
@@ -600,7 +601,7 @@
             "value": "[resourceGroup().name]"
           },
           "workflowsZipUrl": {
-            "value": "[parameters('workflowsZipUrl')]"
+            "value": "[variables('workflowsZipUrl')]"
           }
         },
         "template": {
