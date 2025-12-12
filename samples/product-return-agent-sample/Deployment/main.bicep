@@ -12,9 +12,6 @@ targetScope = 'resourceGroup'
 @maxLength(60)
 param BaseName string
 
-@description('Azure region for resource deployment')
-param location string = resourceGroup().location
-
 // uniqueSuffix for when we need unique values
 var uniqueSuffix = uniqueString(resourceGroup().id)
 
@@ -24,7 +21,7 @@ var workflowsZipUrl = 'https://raw.githubusercontent.com/Azure/logicapps-labs/ma
 // User-Assigned Managed Identity for Logic App → Storage authentication
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${take(BaseName, 60)}-managedidentity'
-  location: location
+  location: resourceGroup().location
 }
 
 // Storage Account for workflow runtime
@@ -32,7 +29,7 @@ module storage '../../shared/modules/storage.bicep' = {
   name: '${take(BaseName, 43)}-storage-deployment'
   params: {
     storageAccountName: toLower(take(replace('${take(BaseName, 16)}${uniqueSuffix}', '-', ''), 24))
-    location: location
+    location: resourceGroup().location
   }
 }
 
@@ -41,7 +38,7 @@ module openai '../../shared/modules/openai.bicep' = {
   name: '${take(BaseName, 44)}-openai-deployment'
   params: {
     openAIName: '${take(BaseName, 54)}-openai'
-    location: location
+    location: resourceGroup().location
   }
 }
 
@@ -50,7 +47,7 @@ module logicApp '../../shared/modules/logicapp.bicep' = {
   name: '${take(BaseName, 42)}-logicapp-deployment'
   params: {
     logicAppName: '${take(BaseName, 22)}${uniqueSuffix}'
-    location: location
+    location: resourceGroup().location
     storageAccountName: storage.outputs.storageAccountName
     openAIEndpoint: openai.outputs.endpoint
     openAIResourceId: openai.outputs.resourceId
@@ -84,7 +81,7 @@ module workflowDeployment '../../shared/modules/deployment-script.bicep' = {
   name: '${take(BaseName, 42)}-workflow-deployment'
   params: {
     deploymentScriptName: '${BaseName}-deploy-workflows'
-    location: location
+    location: resourceGroup().location
     userAssignedIdentityId: userAssignedIdentity.id
     deploymentIdentityPrincipalId: userAssignedIdentity.properties.principalId
     logicAppName: logicApp.outputs.name
