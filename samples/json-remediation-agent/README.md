@@ -127,20 +127,7 @@ VALIDATION: PASSED
 </details>
 
 <details>
-<summary><b>Scenario 3: Broken JSON syntax</b></summary>
-
-Trailing comma (syntactically invalid JSON):
-
-```json
-{"caseId":"incident-trailing-comma"}
-```
-
-**Expected result:** Agent handles trailing commas during data load, then applies repairs. Check **Agent log** to see tool sequence. Status shows SUCCESS with validation PASSED.
-
-</details>
-
-<details>
-<summary><b>Scenario 4: Field standardization</b></summary>
+<summary><b>Scenario 3: Field standardization</b></summary>
 
 Non-canonical field names (`id`, `prio`, `cust_id`, `desc`):
 
@@ -162,7 +149,7 @@ VALIDATION: PASSED
 </details>
 
 <details>
-<summary><b>Scenario 5: Null object handling</b></summary>
+<summary><b>Scenario 4: Null object handling</b></summary>
 
 Null details object:
 
