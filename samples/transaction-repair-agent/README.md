@@ -2,7 +2,7 @@
 
 A conversational AI agent that helps operations teams diagnose and repair failed work orders through natural chat interaction. Built with Azure Logic Apps Standard and Azure OpenAI, the agent guides users through work order analysis, proposes fixes, manages approvals, resubmits transactions, and logs all activities to ITSM for audit compliance.
 
-**[Watch Demo Video](https://youtu.be/-V4n9VMcN0k)**
+**[Watch Demo Video](https://youtu.be/-V4n9VMcN0k)** | **[Agent Workflow Blog](https://techcommunity.microsoft.com/blog/integrationsonazureblog/%F0%9F%A4%96-agent-loop-demos-%F0%9F%A4%96/4414770)**
 
 ---
 
@@ -159,6 +159,8 @@ Help me fix work order WO-11111
 
 This sample uses **nested workflows with mock data** to eliminate external dependencies. Here's how to extend it for production use:
 
+**Note:** The Chat interface is for testing only. For production scenarios with external users, configure proper authentication. [Learn more about securing conversational agent workflows](https://learn.microsoft.com/azure/logic-apps/create-conversational-agent-workflows?tabs=standard#trigger-or-run-the-workflow).
+
 ### Replace demo services
 
 | Component | Demo Implementation | Production Options |
@@ -178,9 +180,10 @@ This sample uses **nested workflows with mock data** to eliminate external depen
 
 **Option 2: Edit in VS Code**
 - Install [Azure Logic Apps (Standard) extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurelogicapps)
-- Open the `LogicApps/` folder in VS Code
-- Edit workflow JSON files locally
-- Right-click on your Logic App resource and select **Deploy to Logic App**
+- In VS Code, select the Azure icon on the Activity Bar
+- Under **Resources**, expand your subscription and find your deployed Logic App
+- Expand **Workflows**, right-click a workflow, and select **Open Designer** to view/edit
+- [Learn more about editing workflows in VS Code](https://learn.microsoft.com/azure/logic-apps/manage-logic-apps-visual-studio-code)
 
 ### Integrate with external systems
 
@@ -331,18 +334,13 @@ The Deploy to Azure button uses a two-stage process:
 <details>
 <summary><b>Sample data approach</b></summary>
 
-This sample uses **nested workflows with mock data** to simplify exploration:
-- **Work order retrieval:** GetWorkOrder workflow with 3 mock work orders (WO-12345, WO-67890, WO-11111)
-- **Repair catalog:** GetFixPlan workflow with 3 failure type repair plans
-- **Approval system:** GetApproval workflow with predetermined approval decisions
-- **Resubmission:** ResubmitWorkOrder workflow (simulated response)
-- **ITSM logging:** LogToITSM workflow with generated incident IDs
+This sample uses nested workflows with mock data to simplify exploration:
+- **Work orders:** GetWorkOrder workflow (3 mock work orders)
+- **Repair catalog:** GetFixPlan workflow (3 failure types)
+- **Approval system:** GetApproval workflow (predetermined decisions)
+- **ITSM logging:** LogToITSM workflow (generated incident IDs)
 
-**Benefits:**
-- ✅ Zero external dependencies (except Azure OpenAI)
-- ✅ Fully deterministic testing
-- ✅ Demonstrates nested workflow pattern with Response actions
-- ✅ Easy to extend with real connectors (Service Bus, ServiceNow, etc.)
+**Note:** The Chat interface is for testing only. For production use with external users, configure proper authentication. [Learn more](https://learn.microsoft.com/azure/logic-apps/create-conversational-agent-workflows?tabs=standard#trigger-or-run-the-workflow).
 
 For production integration options, see [Extend](#extend).
 
