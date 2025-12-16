@@ -32,9 +32,6 @@
             }
           }
         },
-        "limit": {
-          "count": 100
-        },
         "tools": {
           "Get_failed_workorder": {
             "actions": {
