@@ -16,7 +16,7 @@ param BaseName string
 var uniqueSuffix = uniqueString(resourceGroup().id)
 
 // URL to workflows.zip (replaced by BundleAssets.ps1 with actual GitHub URL)
-var workflowsZipUrl = 'https://raw.githubusercontent.com/modularity/logicapps-labs/transaction-repair-conversational/samples/transaction-repair-agent/Deployment/workflows.zip'
+var workflowsZipUrl = 'https://raw.githubusercontent.com/modularity/logicapps-labs/transaction-repair-agent/samples/transaction-repair-agent/Deployment/workflows.zip'
 
 // User-Assigned Managed Identity for Logic App → Storage authentication
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {

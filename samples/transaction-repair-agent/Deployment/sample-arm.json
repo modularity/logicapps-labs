@@ -20,7 +20,7 @@
   },
   "variables": {
     "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
-    "workflowsZipUrl": "https://raw.githubusercontent.com/modularity/logicapps-labs/transaction-repair-conversational/samples/transaction-repair-agent/Deployment/workflows.zip"
+    "workflowsZipUrl": "https://raw.githubusercontent.com/modularity/logicapps-labs/transaction-repair-agent/samples/transaction-repair-agent/Deployment/workflows.zip"
   },
   "resources": [
     {
