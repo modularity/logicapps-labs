@@ -14,7 +14,7 @@ An autonomous operations agent that repairs malformed JSON records, applies dete
 
 **Deploy to your Azure subscription:**
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure%2Flogicapps-labs%2Fmain%2Fsamples%2Fjson-remediation-agent%2FDeployment%2Fsample-arm.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmodularity%2Flogicapps-labs%2Fjson-remediation-agent%2Fsamples%2Fjson-remediation-agent%2FDeployment%2Fsample-arm.json)
 
 <details>
 <summary><b>What happens when you deploy</b></summary>
@@ -210,9 +210,11 @@ This sample includes preconfigured test data in the `LogicApps/data/` folder tha
 - [Learn more about editing workflows in Azure Portal](https://learn.microsoft.com/azure/logic-apps/create-single-tenant-workflows-azure-portal)
 
 **Option 2: Edit in VS Code**
-- Follow setup instructions in [`LogicApps/README.md`](LogicApps/README.md)
-- Edit workflow JSON files locally
-- Deploy changes using Azure Logic Apps VS Code extension
+- Install [Azure Logic Apps (Standard) extension](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-azurelogicapps)
+- In VS Code, select the Azure icon on the Activity Bar
+- Under **Resources**, expand your subscription and find your deployed Logic App
+- Expand **Workflows**, right-click a workflow, and select **Open Designer** to view/edit
+- [Learn more about editing workflows in VS Code](https://learn.microsoft.com/azure/logic-apps/manage-logic-apps-visual-studio-code)
 
 ---
 
